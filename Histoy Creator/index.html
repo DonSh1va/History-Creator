@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>History Creator</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="header">
+            <div class="logo">
+                <i class="fas fa-tree"></i>
+                <span class="logo-text">De DonSh1va</span>
+                <i class="fas fa-tree"></i>
+            </div>
+            <h1>History Creator</h1>
+            <div class="header-actions">
+                <button id="adminToggle" class="admin-btn">
+                    <i class="fas fa-cog"></i> Panel Admin
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Navigation -->
+        <nav class="main-nav">
+            <button class="nav-tab active" data-tab="characters">
+                <i class="fas fa-users"></i> Personajes
+            </button>
+            <button class="nav-tab" data-tab="places">
+                <i class="fas fa-map-marked-alt"></i> Lugares
+            </button>
+            <button class="nav-tab" data-tab="trailers">
+                <i class="fas fa-video"></i> Tráileres
+            </button>
+            <button class="nav-tab" data-tab="downloads">
+                <i class="fas fa-download"></i> Descargas
+            </button>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Characters Section -->
+            <section id="characters" class="content-section active">
+                <div class="section-header">
+                    <h2>Personajes</h2>
+                    <button id="addCharacterBtn" class="add-btn">
+                        <i class="fas fa-plus"></i> Nuevo Personaje
+                    </button>
+                </div>
+                
+                <div class="characters-grid">
+                    <div class="character-list">
+                        <h3>Lista de Personajes</h3>
+                        <div id="characterList" class="list-container">
+                            <!-- Characters will be loaded here -->
+                        </div>
+                    </div>
+                    
+                    <div class="character-details">
+                        <div id="characterView" class="character-view">
+                            <div class="empty-state">
+                                <i class="fas fa-user-circle"></i>
+                                <p>Selecciona un personaje para ver los detalles</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Places Section -->
+            <section id="places" class="content-section">
+                <div class="section-header">
+                    <h2>Lugares Importantes</h2>
+                    <button id="addPlaceBtn" class="add-btn">
+                        <i class="fas fa-plus"></i> Nuevo Lugar
+                    </button>
+                </div>
+                
+                <div class="map-container">
+                    <div id="map" class="map">
+                        <div class="map-wrapper" id="mapWrapper">
+                            <img src="Mapa de Los santos.png" alt="Mapa de Los Santos" class="map-image" id="mapImage">
+                            <div id="mapPins" class="map-pins">
+                                <!-- Map pins will be added here -->
+                            </div>
+                        </div>
+                        <div class="map-controls">
+                            <button class="map-control-btn" id="zoomIn" title="Acercar">
+                                <i class="fas fa-plus"></i>
+                            </button>
+                            <button class="map-control-btn" id="zoomOut" title="Alejar">
+                                <i class="fas fa-minus"></i>
+                            </button>
+                            <button class="map-control-btn" id="resetView" title="Restablecer vista">
+                                <i class="fas fa-compress"></i>
+                            </button>
+                        </div>
+                        <div class="map-instructions">
+                            <i class="fas fa-mouse-pointer"></i>
+                            <span>Doble click para añadir ubicaciones • Scroll para zoom • Arrastra para mover</span>
+                        </div>
+                    </div>
+                    <div class="places-list">
+                        <h3>Lugares Registrados</h3>
+                        <div id="placesList" class="list-container">
+                            <!-- Places will be loaded here -->
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Trailers Section -->
+            <section id="trailers" class="content-section">
+                <div class="section-header">
+                    <h2>Tráileres</h2>
+                    <button id="addTrailerBtn" class="add-btn">
+                        <i class="fas fa-plus"></i> Nuevo Tráiler
+                    </button>
+                </div>
+                <div id="trailersList" class="content-grid">
+                    <!-- Trailers will be loaded here -->
+                </div>
+            </section>
+
+            <!-- Downloads Section -->
+            <section id="downloads" class="content-section">
+                <div class="section-header">
+                    <h2>Descargas</h2>
+                </div>
+                <div id="downloadsList" class="content-grid">
+                    <!-- Downloads will be loaded here -->
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Place Creation/Edit Modal -->
+    <div id="placeModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="placeModalTitle">Nueva Ubicación</h3>
+                <button class="close-btn" onclick="closeModal('placeModal')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <form id="placeForm" class="character-form">
+                <div class="form-sections">
+                    <!-- Basic Information -->
+                    <div class="form-section">
+                        <h4>Información de la Ubicación</h4>
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label>Nombre del Lugar</label>
+                                <input type="text" id="placeName" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Tipo de Lugar</label>
+                                <select id="placeType">
+                                    <option value="casa">Casa</option>
+                                    <option value="negocio">Negocio</option>
+                                    <option value="punto_encuentro">Punto de Encuentro</option>
+                                    <option value="lugar_trabajo">Lugar de Trabajo</option>
+                                    <option value="otro">Otro</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Descripción</label>
+                            <textarea id="placeDescription" rows="4" placeholder="Describe este lugar y su importancia..."></textarea>
+                        </div>
+                    </div>
+
+                    <!-- Character Association -->
+                    <div class="form-section">
+                        <h4>Personajes Relacionados</h4>
+                        <div class="form-group">
+                            <label>Selecciona los personajes relacionados con este lugar</label>
+                            <div id="placeCharacters" class="character-checkboxes">
+                                <!-- Character checkboxes will be added here -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Photos -->
+                    <div class="form-section">
+                        <h4>Fotos del Lugar</h4>
+                        <div class="photo-upload">
+                            <div id="placePhotoPreview" class="photo-preview">
+                                <i class="fas fa-camera"></i>
+                                <span>Subir Foto del Lugar</span>
+                            </div>
+                            <input type="file" id="placePhoto" accept="image/*" style="display: none;">
+                        </div>
+                    </div>
+
+                    <!-- Coordinates (hidden) -->
+                    <input type="hidden" id="placeX" value="">
+                    <input type="hidden" id="placeY" value="">
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" onclick="closeModal('placeModal')" class="cancel-btn">Cancelar</button>
+                    <button type="submit" class="save-btn">Guardar Ubicación</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Character Creation/Edit Modal -->
+    <div id="characterModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modalTitle">Nuevo Personaje</h3>
+                <button class="close-btn" onclick="closeModal('characterModal')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <form id="characterForm" class="character-form">
+                <div class="form-sections">
+                    <!-- Photo Section -->
+                    <div class="form-section">
+                        <h4>Foto del Personaje</h4>
+                        <div class="photo-upload">
+                            <div id="photoPreview" class="photo-preview">
+                                <i class="fas fa-camera"></i>
+                                <span>Subir Foto</span>
+                            </div>
+                            <input type="file" id="characterPhoto" accept="image/*" style="display: none;">
+                        </div>
+                    </div>
+
+                    <!-- Basic Information -->
+                    <div class="form-section">
+                        <h4>Información Básica</h4>
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label>Nombre Completo</label>
+                                <input type="text" id="fullName" required>
+                            </div>
+                            <div class="form-group">
+                                <label>País de Origen</label>
+                                <input type="text" id="originCountry">
+                            </div>
+                            <div class="form-group">
+                                <label>Lugar de Residencia</label>
+                                <input type="text" id="residence">
+                            </div>
+                            <div class="form-group">
+                                <label>Género</label>
+                                <select id="gender">
+                                    <option value="Hombre">Hombre</option>
+                                    <option value="Mujer">Mujer</option>
+                                    <option value="Otro">Otro</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Edad</label>
+                                <input type="number" id="age" min="1" max="120">
+                            </div>
+                            <div class="form-group">
+                                <label>Fecha de Nacimiento</label>
+                                <input type="date" id="birthday">
+                            </div>
+                            <div class="form-group">
+                                <label>Signo Zodiacal</label>
+                                <select id="zodiac">
+                                    <option value="Aries">Aries</option>
+                                    <option value="Tauro">Tauro</option>
+                                    <option value="Géminis">Géminis</option>
+                                    <option value="Cáncer">Cáncer</option>
+                                    <option value="Leo">Leo</option>
+                                    <option value="Virgo">Virgo</option>
+                                    <option value="Libra">Libra</option>
+                                    <option value="Escorpio">Escorpio</option>
+                                    <option value="Sagitario">Sagitario</option>
+                                    <option value="Capricornio">Capricornio</option>
+                                    <option value="Acuario">Acuario</option>
+                                    <option value="Piscis">Piscis</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Orientación Sexual</label>
+                                <select id="orientation">
+                                    <option value="Heterosexual">Heterosexual</option>
+                                    <option value="Homosexual">Homosexual</option>
+                                    <option value="Bisexual">Bisexual</option>
+                                    <option value="Asexual">Asexual</option>
+                                    <option value="Otro">Otro</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Educación Formal</label>
+                                <input type="text" id="education" placeholder="Ej: Secundaria, Universidad">
+                            </div>
+                            <div class="form-group">
+                                <label>Ocupación</label>
+                                <input type="text" id="occupation">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Physical Description -->
+                    <div class="form-section">
+                        <h4>Descripción Física</h4>
+                        <div class="form-group">
+                            <textarea id="physicalDescription" rows="4" placeholder="Describe la apariencia física del personaje..."></textarea>
+                        </div>
+                    </div>
+
+                    <!-- Relationships -->
+                    <div class="form-section">
+                        <h4>Relaciones</h4>
+                        <div class="relationships-container">
+                            <div class="relationship-category">
+                                <h5>Familia</h5>
+                                <div id="familyRelationships" class="relationship-list">
+                                    <!-- Family relationships will be added here -->
+                                </div>
+                                <button type="button" class="add-relationship-btn" data-type="family">
+                                    <i class="fas fa-plus"></i> Añadir Familiar
+                                </button>
+                            </div>
+                            
+                            <div class="relationship-category">
+                                <h5>Conocidos/Amigos</h5>
+                                <div id="friendRelationships" class="relationship-list">
+                                    <!-- Friend relationships will be added here -->
+                                </div>
+                                <button type="button" class="add-relationship-btn" data-type="friend">
+                                    <i class="fas fa-plus"></i> Añadir Amigo/Conocido
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Vehicles -->
+                    <div class="form-section">
+                        <h4>Vehículos</h4>
+                        <div id="vehiclesList" class="vehicles-list">
+                            <!-- Vehicles will be added here -->
+                        </div>
+                        <button type="button" class="add-vehicle-btn">
+                            <i class="fas fa-plus"></i> Añadir Vehículo
+                        </button>
+                    </div>
+
+                    <!-- Character History -->
+                    <div class="form-section">
+                        <h4>Historia del Personaje</h4>
+                        <div class="form-group">
+                            <textarea id="characterHistory" rows="10" placeholder="Escribe la historia completa del personaje..."></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" onclick="closeModal('characterModal')" class="cancel-btn">Cancelar</button>
+                    <button type="submit" class="save-btn">Guardar Personaje</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Admin Panel -->
+    <div id="adminPanel" class="admin-panel">
+        <div class="admin-header">
+            <h3>Panel de Administración</h3>
+            <button onclick="toggleAdminPanel()" class="close-admin-btn">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        
+        <div class="admin-content">
+            <div class="admin-section">
+                <h4>Exportar/Importar Datos</h4>
+                <div class="admin-actions">
+                    <button onclick="exportData()" class="admin-btn">
+                        <i class="fas fa-download"></i> Exportar Datos
+                    </button>
+                    <button onclick="document.getElementById('importFile').click()" class="admin-btn">
+                        <i class="fas fa-upload"></i> Importar Datos
+                    </button>
+                    <input type="file" id="importFile" accept=".json" style="display: none;" onchange="importData(event)">
+                </div>
+            </div>
+            
+            <div class="admin-section">
+                <h4>Gestión de Datos</h4>
+                <div class="admin-actions">
+                    <button onclick="clearAllData()" class="admin-btn danger">
+                        <i class="fas fa-trash"></i> Limpiar Todos los Datos
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
