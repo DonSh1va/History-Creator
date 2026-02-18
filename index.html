@@ -138,6 +138,45 @@
         </main>
     </div>
 
+    <!-- Image Crop Modal -->
+    <div id="imageCropModal" class="modal" style="z-index: 9999;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Recortar Foto del Personaje</h3>
+                <button class="close-btn" onclick="closeImageCropModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="crop-container">
+                <div class="crop-wrapper">
+                    <img id="cropImage" style="max-width: 100%;">
+                    <div id="cropBox" class="crop-box">
+                        <div class="crop-handles">
+                            <div class="handle nw"></div>
+                            <div class="handle ne"></div>
+                            <div class="handle sw"></div>
+                            <div class="handle se"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="crop-controls">
+                <div class="zoom-slider">
+                    <label>Zoom:</label>
+                    <input type="range" id="zoomSlider" min="50" max="200" value="100">
+                    <span id="zoomValue">100%</span>
+                </div>
+            </div>
+            
+            <div class="form-actions">
+                <button type="button" onclick="closeImageCropModal()" class="cancel-btn">Cancelar</button>
+                <button type="button" onclick="cropImage()" class="save-btn">Recortar y Guardar</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Place Creation/Edit Modal -->
     <div id="placeModal" class="modal">
         <div class="modal-content">
@@ -233,6 +272,45 @@
                             </div>
                             <input type="file" id="characterPhoto" accept="image/*" style="display: none;">
                         </div>
+                        
+                        <!-- Image Crop Modal -->
+                        <div id="imageCropModal" class="modal">
+                            <div class="modal-content" style="max-width: 600px;">
+                                <div class="modal-header">
+                                    <h3>Recortar Foto del Personaje</h3>
+                                    <button class="close-btn" onclick="closeImageCropModal()">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
+                                
+                                <div class="crop-container">
+                                    <div class="crop-wrapper">
+                                        <img id="cropImage" style="max-width: 100%;">
+                                        <div id="cropBox" class="crop-box">
+                                            <div class="crop-handles">
+                                                <div class="handle nw"></div>
+                                                <div class="handle ne"></div>
+                                                <div class="handle sw"></div>
+                                                <div class="handle se"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="crop-controls">
+                                    <div class="zoom-slider">
+                                        <label>Zoom:</label>
+                                        <input type="range" id="zoomSlider" min="50" max="200" value="100">
+                                        <span id="zoomValue">100%</span>
+                                    </div>
+                                </div>
+                                
+                                <div class="form-actions">
+                                    <button type="button" onclick="closeImageCropModal()" class="cancel-btn">Cancelar</button>
+                                    <button type="button" onclick="alert('Botón presionado'); cropImage()" class="save-btn">Recortar y Guardar</button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- Basic Information -->
@@ -260,16 +338,16 @@
                                 </select>
                             </div>
                             <div class="form-group">
-                                <label>Edad</label>
-                                <input type="number" id="age" min="1" max="120">
+                                <label>Edad (calculada automáticamente)</label>
+                                <input type="number" id="age" min="1" max="120" disabled style="background: #f5f5f5; cursor: not-allowed; opacity: 0.7;">
                             </div>
                             <div class="form-group">
                                 <label>Fecha de Nacimiento</label>
                                 <input type="date" id="birthday">
                             </div>
                             <div class="form-group">
-                                <label>Signo Zodiacal</label>
-                                <select id="zodiac">
+                                <label>Signo Zodiacal (calculado automáticamente)</label>
+                                <select id="zodiac" disabled style="background: #f5f5f5; cursor: not-allowed; opacity: 0.7;">
                                     <option value="Aries">Aries</option>
                                     <option value="Tauro">Tauro</option>
                                     <option value="Géminis">Géminis</option>
@@ -351,10 +429,37 @@
                     </div>
 
                     <!-- Character History -->
-                    <div class="form-section">
+                    <div class="form-section" id="historySection" style="display: none;">
                         <h4>Historia del Personaje</h4>
                         <div class="form-group">
-                            <textarea id="characterHistory" rows="10" placeholder="Escribe la historia completa del personaje..."></textarea>
+                            <div class="history-editor">
+                                <div class="editor-toolbar">
+                                    <button type="button" class="editor-btn" onclick="formatText('bold')" title="Negrita">
+                                        <i class="fas fa-bold"></i>
+                                    </button>
+                                    <button type="button" class="editor-btn" onclick="formatText('italic')" title="Cursiva">
+                                        <i class="fas fa-italic"></i>
+                                    </button>
+                                    <button type="button" class="editor-btn" onclick="formatText('underline')" title="Subrayado">
+                                        <i class="fas fa-underline"></i>
+                                    </button>
+                                    <button type="button" class="editor-btn" onclick="insertHeading('h3')" title="Título">
+                                        <i class="fas fa-heading"></i> Título
+                                    </button>
+                                    <button type="button" class="editor-btn" onclick="insertHeading('h4')" title="Subtítulo">
+                                        <i class="fas fa-heading"></i> Subtítulo
+                                    </button>
+                                    <button type="button" class="editor-btn" onclick="insertList('ul')" title="Lista">
+                                        <i class="fas fa-list-ul"></i>
+                                    </button>
+                                    <button type="button" class="editor-btn" onclick="insertList('ol')" title="Lista numerada">
+                                        <i class="fas fa-list-ol"></i>
+                                    </button>
+                                </div>
+                                <div id="characterHistory" class="editor-content" contenteditable="true" 
+                                     placeholder="Escribe la historia completa del personaje... Usa los botones para formatear el texto."></div>
+                                <textarea id="characterHistoryRaw" style="display: none;" rows="10"></textarea>
+                            </div>
                         </div>
                     </div>
                 </div>
