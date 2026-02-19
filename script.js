@@ -7,6 +7,10 @@ let currentCharacter = null;
 let editingCharacterId = null;
 let editingPlaceId = null;
 let mapClickPosition = null;
+let editingHistoryOnly = false;
+
+// Placeholder image for missing photos - replace with your own image path
+const PLACEHOLDER_PHOTO = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iIzJkMmQyZCIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTQiIGZpbGw9IiM4ODgiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj5Gb3RvIG5vIGVuY29udHJhZGE8L3RleHQ+PC9zdmc+';
 
 // Map state
 let mapState = {
@@ -159,9 +163,10 @@ function openCharacterModal(characterId = null) {
     const historySection = document.getElementById('historySection');
 
     editingCharacterId = characterId;
+    editingHistoryOnly = false; // Not in history-only mode
 
     // Reset submit button to normal behavior
-    const submitBtn = form.querySelector('.save-btn');
+    const submitBtn = form.querySelector('button[type="submit"].save-btn');
     submitBtn.textContent = 'Guardar Personaje';
     submitBtn.onclick = null; // Remove any custom onclick
 
@@ -176,7 +181,7 @@ function openCharacterModal(characterId = null) {
         if (character) {
             modalTitle.textContent = 'Editar Personaje';
             populateCharacterForm(character);
-            historySection.style.display = 'block'; // Show history section when editing
+            historySection.style.display = 'none'; // Hide history section when editing full character
         }
     } else {
         modalTitle.textContent = 'Nuevo Personaje';
@@ -190,11 +195,22 @@ function openCharacterModal(characterId = null) {
 
 function closeModal(modalId) {
     document.getElementById(modalId).classList.remove('active');
+    
+    // If we were in history-only mode, restore required attributes
+    if (editingHistoryOnly) {
+        const form = document.getElementById('characterForm');
+        form.querySelectorAll('[data-was-required="true"]').forEach(field => {
+            field.setAttribute('required', '');
+            field.removeAttribute('data-was-required');
+        });
+    }
+    
     editingCharacterId = null;
+    editingHistoryOnly = false;
     
     // Reset submit button to normal behavior
     const form = document.getElementById('characterForm');
-    const submitBtn = form.querySelector('.save-btn');
+    const submitBtn = form.querySelector('button[type="submit"].save-btn');
     submitBtn.textContent = 'Guardar Personaje';
     submitBtn.onclick = null;
 }
@@ -258,6 +274,11 @@ function clearDynamicFields() {
 function handleCharacterSubmit(e) {
     e.preventDefault();
 
+    if (editingHistoryOnly) {
+        saveCharacterHistory(editingCharacterId);
+        return;
+    }
+
     const characterData = {
         id: editingCharacterId || generateId(),
         fullName: document.getElementById('fullName').value,
@@ -274,7 +295,6 @@ function handleCharacterSubmit(e) {
         history: getHistoryContent(),
         photo: (() => {
             const img = document.getElementById('photoPreview').querySelector('img');
-            console.log('Imagen guardada:', img ? img.src : 'No hay imagen');
             return img ? img.src : null;
         })(),
         relationships: collectRelationships(),
@@ -559,6 +579,8 @@ function editCharacterHistory(characterId) {
     const historySection = document.getElementById('historySection');
 
     editingCharacterId = characterId;
+    editingHistoryOnly = true;
+    
     modalTitle.textContent = 'Editar Historia del Personaje';
 
     // Clear all form fields first
@@ -574,16 +596,15 @@ function editCharacterHistory(characterId) {
     allSections.forEach(section => {
         if (section.id !== 'historySection') {
             section.style.display = 'none';
+            section.querySelectorAll('input[required], select[required], textarea[required]').forEach(field => {
+                field.removeAttribute('required');
+                field.dataset.wasRequired = 'true';
+            });
         }
     });
 
-    // Change the submit button behavior for history-only editing
-    const submitBtn = form.querySelector('.save-btn');
+    const submitBtn = form.querySelector('button[type="submit"].save-btn');
     submitBtn.textContent = 'Guardar Historia';
-    submitBtn.onclick = function(e) {
-        e.preventDefault();
-        saveCharacterHistory(characterId);
-    };
 
     modal.classList.add('active');
 }
@@ -592,7 +613,6 @@ function saveCharacterHistory(characterId) {
     const character = characters.find(c => c.id === characterId);
     if (!character) return;
 
-    // Update only the history
     character.history = getHistoryContent();
     character.updatedAt = new Date().toISOString();
 
@@ -608,12 +628,6 @@ function saveCharacterHistory(characterId) {
     // Close modal and reset button
     closeModal('characterModal');
     
-    // Reset the submit button
-    const form = document.getElementById('characterForm');
-    const submitBtn = form.querySelector('.save-btn');
-    submitBtn.textContent = 'Guardar Personaje';
-    submitBtn.onclick = null; // Remove the custom onclick
-
     showToast('Historia actualizada correctamente', 'success');
 }
 
@@ -1077,35 +1091,6 @@ function renderDownloadsList() {
     `).join('');
 }
 
-// Placeholder functions for modals
-function openPlaceModal(placeId = null) {
-    const modal = document.getElementById('placeModal');
-    const modalTitle = document.getElementById('placeModalTitle');
-    const form = document.getElementById('placeForm');
-
-    editingPlaceId = placeId;
-
-    if (placeId) {
-        const place = places.find(p => p.id === placeId);
-        if (place) {
-            modalTitle.textContent = 'Editar Ubicación';
-            populatePlaceForm(place);
-        }
-    } else {
-        modalTitle.textContent = 'Nueva Ubicación';
-        form.reset();
-        clearPlaceForm();
-        
-        if (mapClickPosition) {
-            document.getElementById('placeX').value = mapClickPosition.x;
-            document.getElementById('placeY').value = mapClickPosition.y;
-        }
-    }
-
-    renderCharacterCheckboxes();
-    modal.classList.add('active');
-}
-
 function openTrailerModal() {
     showToast('Función de tráileres en desarrollo', 'warning');
 }
@@ -1142,7 +1127,12 @@ function importData(event) {
         try {
             const data = JSON.parse(e.target.result);
             
-            if (data.characters) characters = data.characters;
+            if (data.characters) {
+                characters = data.characters.map(char => ({
+                    ...char,
+                    photo: char.photo || PLACEHOLDER_PHOTO
+                }));
+            }
             if (data.places) places = data.places;
             if (data.trailers) trailers = data.trailers;
             if (data.downloads) downloads = data.downloads;
@@ -1189,10 +1179,7 @@ function handleBirthdayChange(e) {
     const age = calculateAge(birthday);
     const zodiac = calculateZodiac(birthday);
     
-    // Update age field
     document.getElementById('age').value = age;
-    
-    // Update zodiac field
     document.getElementById('zodiac').value = zodiac;
 }
 
@@ -1212,7 +1199,7 @@ function calculateAge(birthday) {
 
 function calculateZodiac(birthday) {
     const date = new Date(birthday);
-    const month = date.getMonth() + 1; // JavaScript months are 0-indexed
+    const month = date.getMonth() + 1;
     const day = date.getDate();
     
     if ((month === 3 && day >= 21) || (month === 4 && day <= 19)) return 'Aries';
@@ -1228,7 +1215,7 @@ function calculateZodiac(birthday) {
     if ((month === 1 && day >= 20) || (month === 2 && day <= 18)) return 'Acuario';
     if ((month === 2 && day >= 19) || (month === 3 && day <= 20)) return 'Piscis';
     
-    return 'Aries'; // Default
+    return 'Aries';
 }
 
 // History Editor Functions
@@ -1248,7 +1235,6 @@ function insertHeading(tag) {
     range.deleteContents();
     range.insertNode(heading);
     
-    // Move cursor after the heading
     range.setStartAfter(heading);
     range.collapse(true);
     selection.removeAllRanges();
@@ -1269,28 +1255,20 @@ function insertList(type) {
 function getHistoryContent() {
     const editor = document.getElementById('characterHistory');
     const rawTextarea = document.getElementById('characterHistoryRaw');
-    
-    // Get the HTML content from the editor
     const htmlContent = editor.innerHTML;
-    
-    // Store the HTML content in the hidden textarea
     rawTextarea.value = htmlContent;
-    
     return htmlContent;
 }
 
 function setHistoryContent(htmlContent) {
     const editor = document.getElementById('characterHistory');
     const rawTextarea = document.getElementById('characterHistoryRaw');
-    
-    // Set the HTML content
     editor.innerHTML = htmlContent || '';
     rawTextarea.value = htmlContent || '';
 }
 
 // Image Crop Functions
 let cropData = {
-    originalImage: null,
     scale: 1,
     cropX: 0,
     cropY: 0,
@@ -1300,17 +1278,16 @@ let cropData = {
     isResizing: false,
     dragStartX: 0,
     dragStartY: 0,
+    startWidth: 0,
+    startHeight: 0,
     resizeHandle: null
 };
 
 function handlePhotoUpload(e) {
     const file = e.target.files[0];
     if (file) {
-        console.log('Archivo seleccionado:', file.name);
         const reader = new FileReader();
         reader.onload = function(e) {
-            console.log('Archivo cargado, mostrando foto directamente...');
-            // Simplemente mostrar la foto directamente sin recorte
             const photoPreview = document.getElementById('photoPreview');
             photoPreview.innerHTML = `<img src="${e.target.result}" alt="Character Photo">`;
             showToast('Foto subida correctamente', 'success');
@@ -1322,46 +1299,27 @@ function handlePhotoUpload(e) {
 function openImageCropModal(imageSrc) {
     const modal = document.getElementById('imageCropModal');
     const cropImage = document.getElementById('cropImage');
-    const cropBox = document.getElementById('cropBox');
     const zoomSlider = document.getElementById('zoomSlider');
     const zoomValue = document.getElementById('zoomValue');
     
-    console.log('Abriendo modal de recorte...');
-    
-    // Cerrar temporalmente el modal principal
     const characterModal = document.getElementById('characterModal');
     characterModal.classList.remove('active');
     
-    // Set image source and ensure it's loaded
     cropImage.src = imageSrc;
     cropImage.onload = () => {
-        cropData.originalImage = cropImage;
-        
-        // Reset crop data con posición centrada - método simple
         cropData.scale = 1;
-        
-        // Usar un valor fijo pero razonable para centrar
-        // La mayoría de las imágenes caben en el contenedor, así que empezamos en una posición segura
-        cropData.cropX = 100; // Posición inicial segura
+        cropData.cropX = 100;
         cropData.cropY = 100;
         cropData.cropWidth = 200;
         cropData.cropHeight = 200;
         
-        console.log('Posición inicial segura:', cropData.cropX, cropData.cropY);
-        console.log('Dimensiones imagen natural:', cropImage.naturalWidth, 'x', cropImage.naturalHeight);
-        
-        // Reset zoom
         zoomSlider.value = 100;
         zoomValue.textContent = '100%';
         
-        // Initialize crop box
         initializeCropBox();
         
-        // Show modal
         modal.style.display = 'block';
         modal.classList.add('active');
-        
-        console.log('Modal de recorte mostrado y imagen cargada');
     };
 }
 
@@ -1370,7 +1328,6 @@ function closeImageCropModal() {
     modal.style.display = 'none';
     modal.classList.remove('active');
     
-    // Reabrir el modal principal si estaba editando
     if (editingCharacterId) {
         const characterModal = document.getElementById('characterModal');
         characterModal.classList.add('active');
@@ -1379,26 +1336,21 @@ function closeImageCropModal() {
 
 function initializeCropBox() {
     const cropBox = document.getElementById('cropBox');
-    const cropImage = document.getElementById('cropImage');
     const zoomSlider = document.getElementById('zoomSlider');
     const zoomValue = document.getElementById('zoomValue');
     
-    // Remove existing event listeners
     cropBox.onmousedown = null;
     cropBox.onmousemove = null;
     cropBox.onmouseup = null;
     zoomSlider.oninput = null;
     
-    // Add drag functionality
     cropBox.addEventListener('mousedown', startDrag);
     
-    // Add resize handles
     const handles = cropBox.querySelectorAll('.handle');
     handles.forEach(handle => {
         handle.addEventListener('mousedown', startResize);
     });
     
-    // Add zoom functionality
     zoomSlider.addEventListener('input', function() {
         cropData.scale = this.value / 100;
         zoomValue.textContent = this.value + '%';
@@ -1500,50 +1452,31 @@ function updateImageTransform() {
 }
 
 function cropImage() {
-    console.log('cropImage() llamada - iniciando recorte');
-    
     try {
-        // Método simple y directo: usar la imagen visible en el DOM
         const cropImageElement = document.getElementById('cropImage');
         
-        // Crear un canvas del tamaño del crop box
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
         canvas.width = cropData.cropWidth;
         canvas.height = cropData.cropHeight;
         
-        console.log('Canvas creado:', canvas.width, 'x', canvas.height);
-        console.log('Posición crop box:', cropData.cropX, cropData.cropY);
-        console.log('Escala:', cropData.scale);
-        
-        // IMPORTANTE: Ajustar para compensar el desplazamiento
-        // Si el recorte está tomando la parte izquierda, necesitamos ajustar las coordenadas
-        const adjustedX = cropData.cropX + (cropData.cropWidth * 0.1); // Ajuste pequeño a la derecha
+        const adjustedX = cropData.cropX + (cropData.cropWidth * 0.1);
         const adjustedY = cropData.cropY;
         
-        console.log('Coordenadas ajustadas:', adjustedX, adjustedY);
-        
-        // Dibujar la imagen escalada desde la posición ajustada
         ctx.drawImage(
             cropImageElement,
             adjustedX, adjustedY, cropData.cropWidth, cropData.cropHeight,
             0, 0, cropData.cropWidth, cropData.cropHeight
         );
         
-        // Convert to data URL and set as preview
         const croppedImageUrl = canvas.toDataURL('image/jpeg', 0.9);
-        console.log('Imagen recortada generada');
         
         const photoPreview = document.getElementById('photoPreview');
         photoPreview.innerHTML = `<img src="${croppedImageUrl}" alt="Character Photo">`;
         
-        console.log('Preview actualizado');
-        
-        // Close modal
         closeImageCropModal();
         
         showToast('Foto recortada correctamente', 'success');
-        console.log('Recorte completado exitosamente');
         
     } catch (error) {
         console.error('Error en cropImage:', error);

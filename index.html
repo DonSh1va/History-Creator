@@ -272,45 +272,6 @@
                             </div>
                             <input type="file" id="characterPhoto" accept="image/*" style="display: none;">
                         </div>
-                        
-                        <!-- Image Crop Modal -->
-                        <div id="imageCropModal" class="modal">
-                            <div class="modal-content" style="max-width: 600px;">
-                                <div class="modal-header">
-                                    <h3>Recortar Foto del Personaje</h3>
-                                    <button class="close-btn" onclick="closeImageCropModal()">
-                                        <i class="fas fa-times"></i>
-                                    </button>
-                                </div>
-                                
-                                <div class="crop-container">
-                                    <div class="crop-wrapper">
-                                        <img id="cropImage" style="max-width: 100%;">
-                                        <div id="cropBox" class="crop-box">
-                                            <div class="crop-handles">
-                                                <div class="handle nw"></div>
-                                                <div class="handle ne"></div>
-                                                <div class="handle sw"></div>
-                                                <div class="handle se"></div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                
-                                <div class="crop-controls">
-                                    <div class="zoom-slider">
-                                        <label>Zoom:</label>
-                                        <input type="range" id="zoomSlider" min="50" max="200" value="100">
-                                        <span id="zoomValue">100%</span>
-                                    </div>
-                                </div>
-                                
-                                <div class="form-actions">
-                                    <button type="button" onclick="closeImageCropModal()" class="cancel-btn">Cancelar</button>
-                                    <button type="button" onclick="alert('Botón presionado'); cropImage()" class="save-btn">Recortar y Guardar</button>
-                                </div>
-                            </div>
-                        </div>
                     </div>
 
                     <!-- Basic Information -->
