@@ -147,6 +147,11 @@ function switchTab(tabName) {
         section.classList.remove('active');
     });
     document.getElementById(tabName).classList.add('active');
+    
+    // Reset map view when entering places tab
+    if (tabName === 'places') {
+        resetMapView();
+    }
 }
 
 // Toggle admin panel
