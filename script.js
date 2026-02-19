@@ -221,6 +221,9 @@ function closeModal(modalId) {
 }
 
 function populateCharacterForm(character) {
+    // Clear dynamic fields first to prevent duplicates
+    clearDynamicFields();
+    
     // Basic info
     document.getElementById('fullName').value = character.fullName || '';
     document.getElementById('originCountry').value = character.originCountry || '';
@@ -242,9 +245,13 @@ function populateCharacterForm(character) {
     document.getElementById('orientation').value = character.orientation || 'Heterosexual';
     document.getElementById('education').value = character.education || '';
     document.getElementById('occupation').value = character.occupation || '';
+    document.getElementById('height').value = character.height || '';
 
     // Physical description
     document.getElementById('physicalDescription').value = character.physicalDescription || '';
+
+    // Personality description
+    document.getElementById('personalityDescription').value = character.personalityDescription || '';
 
     // Character history
     setHistoryContent(character.history || '');
@@ -296,7 +303,9 @@ function handleCharacterSubmit(e) {
         orientation: document.getElementById('orientation').value,
         education: document.getElementById('education').value,
         occupation: document.getElementById('occupation').value,
+        height: document.getElementById('height').value,
         physicalDescription: document.getElementById('physicalDescription').value,
+        personalityDescription: document.getElementById('personalityDescription').value,
         history: getHistoryContent(),
         photo: (() => {
             const img = document.getElementById('photoPreview').querySelector('img');
@@ -313,14 +322,17 @@ function handleCharacterSubmit(e) {
     if (editingCharacterId) {
         const index = characters.findIndex(c => c.id === editingCharacterId);
         characters[index] = characterData;
+        currentCharacter = characterData; // Update current character
         showToast('Personaje actualizado correctamente', 'success');
     } else {
         characters.push(characterData);
+        currentCharacter = characterData; // Set as current character
         showToast('Personaje creado correctamente', 'success');
     }
 
     saveData();
     renderCharacterList();
+    renderCharacterDetails(); // Update the character view automatically
     closeModal('characterModal');
 }
 
@@ -465,7 +477,7 @@ function renderCharacterDetails() {
             
             <div class="character-info-section">
                 <div class="info-section">
-                    <h4><i class="fas fa-user"></i> Información Básica</h4>
+                    <h4><i class="fas fa-address-card"></i> Información Básica</h4>
                     <div class="info-grid">
                         <div class="info-item">
                             <span class="info-label">Nombre Completo</span>
@@ -507,13 +519,24 @@ function renderCharacterDetails() {
                             <span class="info-label">Ocupación</span>
                             <span class="info-value">${currentCharacter.occupation || 'No especificado'}</span>
                         </div>
+                        <div class="info-item">
+                            <span class="info-label">Altura</span>
+                            <span class="info-value">${currentCharacter.height ? currentCharacter.height + ' cm' : 'No especificado'}</span>
+                        </div>
                     </div>
                 </div>
 
                 ${currentCharacter.physicalDescription ? `
                     <div class="info-section">
-                        <h4><i class="fas fa-body"></i> Descripción Física</h4>
+                        <h4><i class="fas fa-user"></i> Descripción Física</h4>
                         <p>${currentCharacter.physicalDescription}</p>
+                    </div>
+                ` : ''}
+
+                ${currentCharacter.personalityDescription ? `
+                    <div class="info-section">
+                        <h4><i class="fas fa-brain"></i> Descripción de Personalidad</h4>
+                        <p>${currentCharacter.personalityDescription}</p>
                     </div>
                 ` : ''}
 
