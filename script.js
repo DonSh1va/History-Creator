@@ -56,13 +56,37 @@ function loadData() {
 // Save data to localStorage
 function saveData() {
     try {
+        const data = {
+            characters,
+            places,
+            trailers,
+            downloads
+        };
+        
+        // Check data size before saving
+        const dataStr = JSON.stringify(data);
+        const dataSize = new Blob([dataStr]).size;
+        const maxSize = 4 * 1024 * 1024; // 4MB limit for localStorage (safe margin)
+        
+        if (dataSize > maxSize) {
+            console.log('Data too large for localStorage (' + (dataSize / 1024 / 1024).toFixed(2) + 'MB). Use "Guardar en Archivo" instead.');
+            showToast('⚠️ Datos demasiado grandes para el navegador. Usa "Guardar en Archivo" para no perderlos.', 'info');
+            // Don't show error to user - just skip localStorage save
+            return;
+        }
+        
         localStorage.setItem('gta_characters', JSON.stringify(characters));
         localStorage.setItem('gta_places', JSON.stringify(places));
         localStorage.setItem('gta_trailers', JSON.stringify(trailers));
         localStorage.setItem('gta_downloads', JSON.stringify(downloads));
     } catch (error) {
-        console.error('Error saving data:', error);
-        showToast('Error al guardar los datos', 'error');
+        if (error.name === 'QuotaExceededError') {
+            console.log('localStorage quota exceeded. Use "Guardar en Archivo" to save your data.');
+            // Don't show error toast - let user continue working
+        } else {
+            console.error('Error saving data:', error);
+            showToast('Error al guardar los datos', 'error');
+        }
     }
 }
 
@@ -272,12 +296,18 @@ function populateCharacterForm(character) {
     if (character.vehicles) {
         character.vehicles.forEach(vehicle => addVehicleField(vehicle));
     }
+    
+    // Photo Gallery
+    if (character.gallery && character.gallery.length > 0) {
+        loadGalleryPhotos(character.gallery);
+    }
 }
 
 function clearDynamicFields() {
     document.getElementById('familyRelationships').innerHTML = '';
     document.getElementById('friendRelationships').innerHTML = '';
     document.getElementById('vehiclesList').innerHTML = '';
+    document.getElementById('photoGalleryContainer').innerHTML = '';
     
     const photoPreview = document.getElementById('photoPreview');
     photoPreview.innerHTML = '<i class="fas fa-camera"></i><span>Subir Foto</span>';
@@ -285,55 +315,61 @@ function clearDynamicFields() {
 
 function handleCharacterSubmit(e) {
     e.preventDefault();
+    
+    try {
+        if (editingHistoryOnly) {
+            saveCharacterHistory(editingCharacterId);
+            return;
+        }
 
-    if (editingHistoryOnly) {
-        saveCharacterHistory(editingCharacterId);
-        return;
+        const characterData = {
+            id: editingCharacterId || generateId(),
+            fullName: document.getElementById('fullName').value,
+            originCountry: document.getElementById('originCountry').value,
+            residence: document.getElementById('residence').value,
+            gender: document.getElementById('gender').value,
+            age: document.getElementById('age').value,
+            birthday: document.getElementById('birthday').value,
+            zodiac: document.getElementById('zodiac').value,
+            orientation: document.getElementById('orientation').value,
+            education: document.getElementById('education').value,
+            occupation: document.getElementById('occupation').value,
+            height: document.getElementById('height').value,
+            physicalDescription: document.getElementById('physicalDescription').value,
+            personalityDescription: document.getElementById('personalityDescription').value,
+            history: getHistoryContent(),
+            photo: (() => {
+                const img = document.getElementById('photoPreview').querySelector('img');
+                return img ? img.src : null;
+            })(),
+            relationships: collectRelationships(),
+            vehicles: collectVehicles(),
+            gallery: collectGalleryPhotos(),
+            createdAt: editingCharacterId ? 
+                characters.find(c => c.id === editingCharacterId).createdAt : 
+                new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+        };
+
+        if (editingCharacterId) {
+            const index = characters.findIndex(c => c.id === editingCharacterId);
+            characters[index] = characterData;
+            currentCharacter = characterData;
+            showToast('Personaje actualizado correctamente', 'success');
+        } else {
+            characters.push(characterData);
+            currentCharacter = characterData;
+            showToast('Personaje creado correctamente', 'success');
+        }
+
+        saveData();
+        renderCharacterList();
+        renderCharacterDetails();
+        closeModal('characterModal');
+    } catch (error) {
+        console.error('Error en handleCharacterSubmit:', error);
+        showToast('Error: ' + error.message, 'error');
     }
-
-    const characterData = {
-        id: editingCharacterId || generateId(),
-        fullName: document.getElementById('fullName').value,
-        originCountry: document.getElementById('originCountry').value,
-        residence: document.getElementById('residence').value,
-        gender: document.getElementById('gender').value,
-        age: document.getElementById('age').value,
-        birthday: document.getElementById('birthday').value,
-        zodiac: document.getElementById('zodiac').value,
-        orientation: document.getElementById('orientation').value,
-        education: document.getElementById('education').value,
-        occupation: document.getElementById('occupation').value,
-        height: document.getElementById('height').value,
-        physicalDescription: document.getElementById('physicalDescription').value,
-        personalityDescription: document.getElementById('personalityDescription').value,
-        history: getHistoryContent(),
-        photo: (() => {
-            const img = document.getElementById('photoPreview').querySelector('img');
-            return img ? img.src : null;
-        })(),
-        relationships: collectRelationships(),
-        vehicles: collectVehicles(),
-        createdAt: editingCharacterId ? 
-            characters.find(c => c.id === editingCharacterId).createdAt : 
-            new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-    };
-
-    if (editingCharacterId) {
-        const index = characters.findIndex(c => c.id === editingCharacterId);
-        characters[index] = characterData;
-        currentCharacter = characterData; // Update current character
-        showToast('Personaje actualizado correctamente', 'success');
-    } else {
-        characters.push(characterData);
-        currentCharacter = characterData; // Set as current character
-        showToast('Personaje creado correctamente', 'success');
-    }
-
-    saveData();
-    renderCharacterList();
-    renderCharacterDetails(); // Update the character view automatically
-    closeModal('characterModal');
 }
 
 function collectRelationships() {
@@ -589,6 +625,26 @@ function renderCharacterDetails() {
                         <h4><i class="fas fa-book"></i> Historia del Personaje</h4>
                         <div class="character-history-display editor-content" style="background: #2d2d2d; padding: 1rem; border-radius: 8px; border: 1px solid #444; min-height: auto; max-height: none;">
                             ${currentCharacter.history}
+                        </div>
+                    </div>
+                ` : ''}
+
+                ${currentCharacter.gallery?.length > 0 ? `
+                    <div class="info-section character-gallery-section">
+                        <h4><i class="fas fa-images"></i> Galería de Fotos</h4>
+                        <div class="character-gallery-grid">
+                            ${currentCharacter.gallery.map((photo, index) => `
+                                <div class="character-gallery-item" onclick="openGalleryLightbox(currentCharacter.gallery, ${index})">
+                                    <img src="${photo.image}" alt="Gallery photo ${index + 1}">
+                                    <div class="character-gallery-overlay">
+                                        ${photo.description ? `<p>${photo.description}</p>` : ''}
+                                        <div class="character-gallery-meta">
+                                            ${photo.date ? `<span><i class="fas fa-calendar"></i> ${photo.date}</span>` : ''}
+                                            ${photo.location ? `<span><i class="fas fa-map-marker-alt"></i> ${photo.location}</span>` : ''}
+                                        </div>
+                                    </div>
+                                </div>
+                            `).join('')}
                         </div>
                     </div>
                 ` : ''}
@@ -1199,6 +1255,109 @@ function clearAllData() {
     }
 }
 
+// File System Access API Functions
+let fileHandle = null; // Store the file handle for subsequent saves
+
+async function saveToFile() {
+    try {
+        const data = {
+            characters,
+            places,
+            trailers,
+            downloads,
+            exportDate: new Date().toISOString()
+        };
+
+        const dataStr = JSON.stringify(data, null, 2);
+        const blob = new Blob([dataStr], { type: 'application/json' });
+
+        // Check if File System Access API is supported
+        if ('showSaveFilePicker' in window) {
+            // If we already have a file handle, use it (overwrite)
+            if (fileHandle) {
+                const writable = await fileHandle.createWritable();
+                await writable.write(blob);
+                await writable.close();
+                showToast('Datos guardados en archivo', 'success');
+            } else {
+                // First time - ask user where to save
+                fileHandle = await window.showSaveFilePicker({
+                    suggestedName: `history_creator_data_${new Date().toISOString().split('T')[0]}.json`,
+                    types: [{
+                        description: 'JSON Files',
+                        accept: { 'application/json': ['.json'] }
+                    }]
+                });
+                
+                const writable = await fileHandle.createWritable();
+                await writable.write(blob);
+                await writable.close();
+                showToast('Archivo guardado correctamente', 'success');
+            }
+        } else {
+            // Fallback for browsers that don't support File System Access API
+            const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+            const linkElement = document.createElement('a');
+            linkElement.setAttribute('href', dataUri);
+            linkElement.setAttribute('download', `history_creator_data_${new Date().toISOString().split('T')[0]}.json`);
+            linkElement.click();
+            showToast('Datos descargados (navegador no soporta guardado directo)', 'success');
+        }
+    } catch (error) {
+        if (error.name !== 'AbortError') {
+            console.error('Error saving to file:', error);
+            showToast('Error al guardar archivo: ' + error.message, 'error');
+        }
+    }
+}
+
+async function loadFromFile() {
+    try {
+        if ('showOpenFilePicker' in window) {
+            [fileHandle] = await window.showOpenFilePicker({
+                types: [{
+                    description: 'JSON Files',
+                    accept: { 'application/json': ['.json'] }
+                }],
+                multiple: false
+            });
+            
+            const file = await fileHandle.getFile();
+            const contents = await file.text();
+            
+            const data = JSON.parse(contents);
+            
+            if (data.characters) {
+                characters = data.characters.map(char => ({
+                    ...char,
+                    photo: char.photo || PLACEHOLDER_PHOTO
+                }));
+            }
+            if (data.places) places = data.places;
+            if (data.trailers) trailers = data.trailers;
+            if (data.downloads) downloads = data.downloads;
+
+            // Also save to localStorage as backup
+            saveData();
+            
+            renderCharacterList();
+            renderPlacesList();
+            renderTrailersList();
+            renderDownloadsList();
+
+            showToast('Datos cargados desde archivo correctamente', 'success');
+        } else {
+            // Fallback - use traditional file input
+            document.getElementById('importFile').click();
+        }
+    } catch (error) {
+        if (error.name !== 'AbortError') {
+            console.error('Error loading from file:', error);
+            showToast('Error al cargar archivo: ' + error.message, 'error');
+        }
+    }
+}
+
 // Birthday and Zodiac Functions
 function handleBirthdayChange(e) {
     const birthday = e.target.value;
@@ -1535,3 +1694,271 @@ function showToast(message, type = 'info') {
         }, 300);
     }, 3000);
 }
+
+// Photo Gallery Functions
+let galleryPhotos = [];
+let currentLightboxIndex = 0;
+let currentGalleryPhotos = [];
+
+// Function to compress image
+function compressImage(src, maxWidth = 800, maxHeight = 600, quality = 0.7) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = function() {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            let width = img.width;
+            let height = img.height;
+            
+            // Calculate new dimensions
+            if (width > height) {
+                if (width > maxWidth) {
+                    height *= maxWidth / width;
+                    width = maxWidth;
+                }
+            } else {
+                if (height > maxHeight) {
+                    width *= maxHeight / height;
+                    height = maxHeight;
+                }
+            }
+            
+            canvas.width = width;
+            canvas.height = height;
+            ctx.drawImage(img, 0, 0, width, height);
+            
+            // Compress to JPEG with specified quality
+            const compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
+            resolve(compressedDataUrl);
+        };
+        img.onerror = reject;
+        img.src = src;
+    });
+}
+
+function addGalleryPhotoField(photoData = null) {
+    const container = document.getElementById('photoGalleryContainer');
+    const photoId = 'gallery_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    
+    const galleryItem = document.createElement('div');
+    galleryItem.className = 'gallery-item';
+    galleryItem.dataset.photoId = photoId;
+    
+    if (photoData && photoData.image) {
+        galleryItem.innerHTML = `
+            <img src="${photoData.image}" alt="Gallery Photo" class="gallery-item-photo">
+            <button type="button" class="gallery-item-remove" onclick="removeGalleryPhoto('${photoId}')">
+                <i class="fas fa-times"></i>
+            </button>
+            <div class="gallery-item-info">
+                <div class="form-group">
+                    <label>Descripción</label>
+                    <textarea class="gallery-description" rows="2" placeholder="Describe esta foto...">${photoData.description || ''}</textarea>
+                </div>
+                <div class="form-group">
+                    <label>Fecha (opcional)</label>
+                    <input type="date" class="gallery-date" value="${photoData.date || ''}">
+                </div>
+                <div class="form-group">
+                    <label>Ubicación</label>
+                    <input type="text" class="gallery-location" placeholder="Ej: Los Santos, GTA V" value="${photoData.location || ''}">
+                </div>
+            </div>
+        `;
+    } else {
+        galleryItem.innerHTML = `
+            <div class="gallery-item-placeholder" onclick="document.getElementById('${photoId}_input').click()">
+                <i class="fas fa-camera"></i>
+                <span>Subir Foto</span>
+            </div>
+            <input type="file" id="${photoId}_input" accept="image/*" style="display: none;" onchange="handleGalleryPhotoUpload(this, '${photoId}')">
+            <button type="button" class="gallery-item-remove" onclick="removeGalleryPhoto('${photoId}')">
+                <i class="fas fa-times"></i>
+            </button>
+            <div class="gallery-item-info">
+                <div class="form-group">
+                    <label>Descripción</label>
+                    <textarea class="gallery-description" rows="2" placeholder="Describe esta foto..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Fecha (opcional)</label>
+                    <input type="date" class="gallery-date">
+                </div>
+                <div class="form-group">
+                    <label>Ubicación</label>
+                    <input type="text" class="gallery-location" placeholder="Ej: Los Santos, GTA V">
+                </div>
+            </div>
+        `;
+    }
+    
+    container.appendChild(galleryItem);
+}
+
+function handleGalleryPhotoUpload(input, photoId) {
+    const file = input.files[0];
+    if (!file) return;
+    
+    // Check file size (max 50MB para GIFs y archivos grandes)
+    if (file.size > 50 * 1024 * 1024) {
+        showToast('La imagen es demasiado grande. Máximo 50MB.', 'error');
+        return;
+    }
+    
+    const reader = new FileReader();
+    reader.onload = async function(e) {
+        try {
+            const galleryItem = document.querySelector(`[data-photo-id="${photoId}"]`);
+            const placeholder = galleryItem.querySelector('.gallery-item-placeholder');
+            
+            // For GIFs, don't compress - keep original
+            const isGif = file.type === 'image/gif';
+            let finalSrc = e.target.result;
+            
+            if (!isGif) {
+                // Compress only non-GIF images
+                showToast('Comprimiendo imagen...', 'info');
+                finalSrc = await compressImage(e.target.result);
+            }
+            
+            // Replace placeholder with image
+            const img = document.createElement('img');
+            img.src = finalSrc;
+            img.alt = 'Gallery Photo';
+            img.className = 'gallery-item-photo';
+            
+            placeholder.parentNode.replaceChild(img, placeholder);
+            
+            // Remove the file input since we have the image now
+            const fileInput = galleryItem.querySelector('input[type="file"]');
+            if (fileInput) fileInput.remove();
+            
+            showToast(isGif ? 'GIF añadido correctamente' : 'Imagen comprimida y lista', 'success');
+        } catch (error) {
+            console.error('Error processing image:', error);
+            showToast('Error al procesar la imagen', 'error');
+        }
+    };
+    reader.readAsDataURL(file);
+}
+
+function removeGalleryPhoto(photoId) {
+    const galleryItem = document.querySelector(`[data-photo-id="${photoId}"]`);
+    if (galleryItem) {
+        galleryItem.remove();
+    }
+}
+
+function collectGalleryPhotos() {
+    const photos = [];
+    const galleryItems = document.querySelectorAll('#photoGalleryContainer .gallery-item');
+    console.log('Collecting gallery photos, found items:', galleryItems.length);
+    
+    galleryItems.forEach((item, index) => {
+        const img = item.querySelector('.gallery-item-photo');
+        const description = item.querySelector('.gallery-description')?.value || '';
+        const date = item.querySelector('.gallery-date')?.value || '';
+        const location = item.querySelector('.gallery-location')?.value || '';
+        
+        console.log(`Item ${index}:`, { hasImage: !!img, src: img?.src?.substring(0, 50), description, date, location });
+        
+        if (img && img.src && !img.src.includes('undefined')) {
+            photos.push({
+                image: img.src,
+                description: description,
+                date: date,
+                location: location
+            });
+        }
+    });
+    
+    console.log('Total photos collected:', photos.length);
+    return photos;
+}
+
+function loadGalleryPhotos(photos) {
+    const container = document.getElementById('photoGalleryContainer');
+    container.innerHTML = '';
+    
+    console.log('Loading gallery photos:', photos?.length || 0);
+    
+    if (photos && photos.length > 0) {
+        photos.forEach((photo, index) => {
+            console.log(`Loading photo ${index}:`, { hasImage: !!photo.image, description: photo.description });
+            addGalleryPhotoField(photo);
+        });
+    }
+}
+
+// Gallery Lightbox Functions
+function openGalleryLightbox(photos, index) {
+    currentGalleryPhotos = photos;
+    currentLightboxIndex = index;
+    
+    const lightbox = document.createElement('div');
+    lightbox.className = 'gallery-lightbox';
+    lightbox.id = 'galleryLightbox';
+    
+    updateLightboxContent(lightbox);
+    
+    document.body.appendChild(lightbox);
+    document.body.style.overflow = 'hidden';
+}
+
+function updateLightboxContent(lightbox) {
+    const photo = currentGalleryPhotos[currentLightboxIndex];
+    
+    lightbox.innerHTML = `
+        <button class="gallery-lightbox-close" onclick="closeGalleryLightbox()">
+            <i class="fas fa-times"></i>
+        </button>
+        ${currentGalleryPhotos.length > 1 ? `
+            <button class="gallery-lightbox-nav prev" onclick="navigateLightbox(-1)">
+                <i class="fas fa-chevron-left"></i>
+            </button>
+            <button class="gallery-lightbox-nav next" onclick="navigateLightbox(1)">
+                <i class="fas fa-chevron-right"></i>
+            </button>
+        ` : ''}
+        <div class="gallery-lightbox-content">
+            <img src="${photo.image}" alt="Gallery Photo">
+            <div class="gallery-lightbox-info">
+                ${photo.description ? `<p>${photo.description}</p>` : ''}
+                <div class="gallery-lightbox-meta">
+                    ${photo.date ? `<span><i class="fas fa-calendar"></i> ${photo.date}</span>` : ''}
+                    ${photo.location ? `<span><i class="fas fa-map-marker-alt"></i> ${photo.location}</span>` : ''}
+                    <span><i class="fas fa-image"></i> ${currentLightboxIndex + 1} / ${currentGalleryPhotos.length}</span>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function closeGalleryLightbox() {
+    const lightbox = document.getElementById('galleryLightbox');
+    if (lightbox) {
+        lightbox.remove();
+        document.body.style.overflow = '';
+    }
+}
+
+function navigateLightbox(direction) {
+    currentLightboxIndex += direction;
+    
+    if (currentLightboxIndex < 0) {
+        currentLightboxIndex = currentGalleryPhotos.length - 1;
+    } else if (currentLightboxIndex >= currentGalleryPhotos.length) {
+        currentLightboxIndex = 0;
+    }
+    
+    const lightbox = document.getElementById('galleryLightbox');
+    updateLightboxContent(lightbox);
+}
+
+// Close lightbox with Escape key
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        closeGalleryLightbox();
+    }
+});

@@ -435,6 +435,18 @@
                             </div>
                         </div>
                     </div>
+
+                    <!-- Photo Gallery -->
+                    <div class="form-section">
+                        <h4><i class="fas fa-images"></i> Galería de Fotos</h4>
+                        <p class="form-hint">Añade fotos con descripción, fecha y ubicación</p>
+                        <div id="photoGalleryContainer" class="photo-gallery-container">
+                            <!-- Gallery items will be added here -->
+                        </div>
+                        <button type="button" class="add-gallery-photo-btn" onclick="addGalleryPhotoField()">
+                            <i class="fas fa-plus"></i> Añadir Foto
+                        </button>
+                    </div>
                 </div>
 
                 <div class="form-actions">
@@ -456,13 +468,27 @@
         
         <div class="admin-content">
             <div class="admin-section">
-                <h4>Exportar/Importar Datos</h4>
+                <h4>Guardar en Archivo Local</h4>
+                <p style="color: #888; font-size: 0.85rem; margin-bottom: 0.5rem;">Guarda todos los datos en un archivo en tu PC. Permite ~20 fotos por personaje.</p>
+                <div class="admin-actions">
+                    <button onclick="saveToFile()" class="admin-btn">
+                        <i class="fas fa-save"></i> Guardar en Archivo
+                    </button>
+                    <button onclick="loadFromFile()" class="admin-btn">
+                        <i class="fas fa-folder-open"></i> Cargar desde Archivo
+                    </button>
+                </div>
+            </div>
+            
+            <div class="admin-section">
+                <h4>Exportar/Importar Datos (Backup)</h4>
+                <p style="color: #888; font-size: 0.85rem; margin-bottom: 0.5rem;">Exporta como JSON para backup o transferir entre dispositivos.</p>
                 <div class="admin-actions">
                     <button onclick="exportData()" class="admin-btn">
-                        <i class="fas fa-download"></i> Exportar Datos
+                        <i class="fas fa-download"></i> Exportar JSON
                     </button>
                     <button onclick="document.getElementById('importFile').click()" class="admin-btn">
-                        <i class="fas fa-upload"></i> Importar Datos
+                        <i class="fas fa-upload"></i> Importar JSON
                     </button>
                     <input type="file" id="importFile" accept=".json" style="display: none;" onchange="importData(event)">
                 </div>
