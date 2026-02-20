@@ -1271,18 +1271,67 @@ body {
     transform: translateY(0);
 }
 
+.color-picker-group {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    margin-left: auto;
+}
+
+.color-picker {
+    width: 40px;
+    height: 32px;
+    border: 2px solid #444;
+    border-radius: 4px;
+    cursor: pointer;
+    background: transparent;
+}
+
+.color-picker:hover {
+    border-color: #ff6b35;
+}
+
+.color-btn {
+    background: #ff6b35;
+}
+
+.color-btn:hover {
+    background: #ff8555;
+}
+
 .editor-content {
     min-height: 200px;
     padding: 1rem;
     background: #2d2d2d;
     color: #e0e0e0;
-    font-family: 'Rajdhani', sans-serif;
-    font-size: 1rem;
+    font-family: 'Rajdhani', sans-serif !important;
+    font-size: 1rem !important;
     line-height: 1.6;
     border: none;
     outline: none;
     overflow-y: auto;
     max-height: 400px;
+}
+
+/* Force all text inside editor to use Rajdhani font */
+.editor-content * {
+    font-family: 'Rajdhani', sans-serif !important;
+    font-size: inherit !important;
+    color: inherit !important;
+}
+
+/* Remove any imported styles */
+.editor-content font,
+.editor-content span[style*="font-family"] {
+    font-family: 'Rajdhani', sans-serif !important;
+}
+
+.editor-content span[style*="color"] {
+    color: inherit !important;
+}
+
+.editor-content span[style*="font-size"] {
+    font-size: inherit !important;
 }
 
 .editor-content:empty:before {

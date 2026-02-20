@@ -33,6 +33,9 @@ document.addEventListener('DOMContentLoaded', function() {
     renderMapPins();
     renderTrailersList();
     renderDownloadsList();
+    
+    // Initialize paste event listener for history editor
+    initializePasteHandler();
 });
 
 // Load data from localStorage
@@ -1437,6 +1440,44 @@ function insertList(type) {
     
     document.execCommand('insertHTML', false, listHTML);
     document.getElementById('characterHistory').focus();
+}
+
+function changeTextColor(color) {
+    document.execCommand('foreColor', false, color);
+    document.getElementById('characterHistory').focus();
+}
+
+function initializePasteHandler() {
+    const editor = document.getElementById('characterHistory');
+    
+    editor.addEventListener('paste', function(e) {
+        e.preventDefault();
+        
+        // Get the pasted content as plain text
+        const text = (e.clipboardData || window.clipboardData).getData('text/plain');
+        
+        // Get the current selection
+        const selection = window.getSelection();
+        const range = selection.getRangeAt(0);
+        
+        // Delete the selected content
+        range.deleteContents();
+        
+        // Create a text node with the plain text
+        const textNode = document.createTextNode(text);
+        
+        // Insert the text node
+        range.insertNode(textNode);
+        
+        // Move the cursor after the inserted text
+        range.setStartAfter(textNode);
+        range.collapse(true);
+        selection.removeAllRanges();
+        selection.addRange(range);
+        
+        // Focus the editor
+        editor.focus();
+    });
 }
 
 function getHistoryContent() {
