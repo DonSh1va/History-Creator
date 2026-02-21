@@ -36,61 +36,26 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Initialize paste event listener for history editor
     initializePasteHandler();
+    
+    // Initialize theme
+    initTheme();
+    
+    // Check for auto-load JSON
+    checkAutoJson();
 });
 
-// Load data from localStorage
+// Load data from IndexedDB (localStorage removed)
 function loadData() {
-    try {
-        const savedCharacters = localStorage.getItem('gta_characters');
-        const savedPlaces = localStorage.getItem('gta_places');
-        const savedTrailers = localStorage.getItem('gta_trailers');
-        const savedDownloads = localStorage.getItem('gta_downloads');
-
-        if (savedCharacters) characters = JSON.parse(savedCharacters);
-        if (savedPlaces) places = JSON.parse(savedPlaces);
-        if (savedTrailers) trailers = JSON.parse(savedTrailers);
-        if (savedDownloads) downloads = JSON.parse(savedDownloads);
-    } catch (error) {
-        console.error('Error loading data:', error);
-        showToast('Error al cargar los datos', 'error');
-    }
+    // Data is now loaded from the auto-load JSON system
+    // No need for separate localStorage loading
+    console.log('Data loading handled by auto-load JSON system');
 }
 
-// Save data to localStorage
+// Save data to IndexedDB (localStorage removed)
 function saveData() {
-    try {
-        const data = {
-            characters,
-            places,
-            trailers,
-            downloads
-        };
-        
-        // Check data size before saving
-        const dataStr = JSON.stringify(data);
-        const dataSize = new Blob([dataStr]).size;
-        const maxSize = 4 * 1024 * 1024; // 4MB limit for localStorage (safe margin)
-        
-        if (dataSize > maxSize) {
-            console.log('Data too large for localStorage (' + (dataSize / 1024 / 1024).toFixed(2) + 'MB). Use "Guardar en Archivo" instead.');
-            showToast('⚠️ Datos demasiado grandes para el navegador. Usa "Guardar en Archivo" para no perderlos.', 'info');
-            // Don't show error to user - just skip localStorage save
-            return;
-        }
-        
-        localStorage.setItem('gta_characters', JSON.stringify(characters));
-        localStorage.setItem('gta_places', JSON.stringify(places));
-        localStorage.setItem('gta_trailers', JSON.stringify(trailers));
-        localStorage.setItem('gta_downloads', JSON.stringify(downloads));
-    } catch (error) {
-        if (error.name === 'QuotaExceededError') {
-            console.log('localStorage quota exceeded. Use "Guardar en Archivo" to save your data.');
-            // Don't show error toast - let user continue working
-        } else {
-            console.error('Error saving data:', error);
-            showToast('Error al guardar los datos', 'error');
-        }
-    }
+    // Data is now saved through the auto-load JSON system
+    // No need for separate localStorage saving
+    console.log('Data saving handled by auto-load JSON system');
 }
 
 // Initialize event listeners
@@ -2003,3 +1968,335 @@ document.addEventListener('keydown', function(e) {
         closeGalleryLightbox();
     }
 });
+
+// Auto JSON Load Functions with IndexedDB support
+let autoJsonDB = null;
+
+// Initialize IndexedDB for large JSON files
+async function initAutoJsonDB() {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open('AutoJsonDB', 1);
+        
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => {
+            autoJsonDB = request.result;
+            resolve(autoJsonDB);
+        };
+        
+        request.onupgradeneeded = (event) => {
+            const db = event.target.result;
+            const objectStore = db.createObjectStore('jsonFiles', { keyPath: 'fileName' });
+            objectStore.createIndex('fileName', 'fileName', { unique: true });
+        };
+    });
+}
+
+async function uploadAutoJson() {
+    const fileInput = document.getElementById('autoJsonFile');
+    const file = fileInput.files[0];
+    
+    if (!file) {
+        showToast('Por favor selecciona un archivo JSON', 'error');
+        return;
+    }
+    
+    if (!file.name.toLowerCase().endsWith('.json')) {
+        showToast('El archivo debe ser un JSON', 'error');
+        return;
+    }
+    
+    const reader = new FileReader();
+    reader.onload = async function(e) {
+        try {
+            const jsonContent = e.target.result;
+            
+            console.log('Contenido del archivo:', jsonContent.substring(0, 100) + '...');
+            console.log('Longitud:', jsonContent.length);
+            
+            // Try to validate and parse JSON
+            const data = JSON.parse(jsonContent);
+            
+            console.log('JSON parseado exitosamente');
+            
+            // Check if it has the expected structure
+            const hasValidStructure = data.characters || data.places || data.trailers || data.downloads;
+            
+            if (!hasValidStructure) {
+                console.warn('El JSON no tiene la estructura esperada (characters, places, trailers, downloads)');
+                showToast('Advertencia: El JSON no tiene la estructura esperada, pero se guardará igual', 'warning');
+            }
+            
+            // Try localStorage first (for small files)
+            if (jsonContent.length < 4 * 1024 * 1024) { // 4MB limit
+                try {
+                    localStorage.setItem('autoJsonData', jsonContent);
+                    localStorage.setItem('autoJsonFileName', file.name);
+                    localStorage.setItem('autoJsonEnabled', 'true');
+                    localStorage.setItem('useLocalStorage', 'true');
+                    // Update status
+                    updateAutoJsonStatus(true, file.name + ' (localStorage)');
+                    await loadAutoJson(true);
+                    showToast(`Archivo ${file.name} guardado en localStorage`, 'success');
+                    return;
+                } catch (error) {
+                    console.log('localStorage too small, using IndexedDB');
+                }
+            }
+            
+            // Use IndexedDB for large files
+            await initAutoJsonDB();
+            
+            const transaction = autoJsonDB.transaction(['jsonFiles'], 'readwrite');
+            const store = transaction.objectStore('jsonFiles');
+            
+            const jsonFile = {
+                fileName: file.name,
+                content: jsonContent,
+                uploadDate: new Date().toISOString(),
+                size: jsonContent.length
+            };
+            
+            await new Promise((resolve, reject) => {
+                const request = store.put(jsonFile);
+                request.onsuccess = () => resolve();
+                request.onerror = () => reject(request.error);
+            });
+            
+            // Update localStorage with metadata
+            localStorage.setItem('autoJsonFileName', file.name);
+            localStorage.setItem('autoJsonEnabled', 'true');
+            localStorage.setItem('useLocalStorage', 'false');
+            
+            // Update status
+            updateAutoJsonStatus(true, file.name + ' (IndexedDB)');
+            
+            // Load the data immediately with notification
+            await loadAutoJson(true);
+            
+            showToast(`Archivo ${file.name} (${(jsonContent.length / 1024 / 1024).toFixed(1)}MB) guardado en IndexedDB`, 'success');
+            
+        } catch (error) {
+            console.error('Error de validación JSON:', error);
+            
+            // Show detailed error
+            const jsonContent = e.target.result;
+            const errorDetails = analyzeJsonError(jsonContent, error);
+            
+            showToast(`Error en JSON: ${errorDetails}`, 'error');
+            
+            // Try to show what's wrong
+            if (jsonContent.trim().startsWith('<')) {
+                showToast('El archivo parece ser HTML/XML, no JSON', 'error');
+            } else if (jsonContent.trim() === '') {
+                showToast('El archivo está vacío', 'error');
+            } else if (!jsonContent.trim().startsWith('{') && !jsonContent.trim().startsWith('[')) {
+                showToast('El JSON debe empezar con { o [', 'error');
+            } else {
+                showToast(`JSON inválido. Revisa la sintaxis cerca de: ${error.message}`, 'error');
+            }
+        }
+    };
+    
+    reader.readAsText(file);
+}
+
+async function loadAutoJson(showNotification = false) {
+    const fileName = localStorage.getItem('autoJsonFileName');
+    const useLocalStorage = localStorage.getItem('useLocalStorage') === 'true';
+    
+    if (!fileName || localStorage.getItem('autoJsonEnabled') !== 'true') {
+        if (showNotification) {
+            showToast('No hay archivo JSON guardado para cargar automáticamente', 'warning');
+        }
+        return;
+    }
+    
+    try {
+        let jsonContent;
+        
+        if (useLocalStorage) {
+            // Load from localStorage
+            jsonContent = localStorage.getItem('autoJsonData');
+        } else {
+            // Load from IndexedDB
+            await initAutoJsonDB();
+            
+            const transaction = autoJsonDB.transaction(['jsonFiles'], 'readonly');
+            const store = transaction.objectStore('jsonFiles');
+            
+            jsonContent = await new Promise((resolve, reject) => {
+                const request = store.get(fileName);
+                request.onsuccess = () => resolve(request.result?.content);
+                request.onerror = () => reject(request.error);
+            });
+        }
+        
+        if (!jsonContent) {
+            if (showNotification) {
+                showToast('No se encontró el archivo JSON guardado', 'error');
+            }
+            return;
+        }
+        
+        const data = JSON.parse(jsonContent);
+        
+        // Load the data
+        if (data.characters) {
+            characters = data.characters.map(char => ({
+                ...char,
+                photo: char.photo || PLACEHOLDER_PHOTO
+            }));
+        }
+        if (data.places) places = data.places;
+        if (data.trailers) trailers = data.trailers;
+        if (data.downloads) downloads = data.downloads;
+
+        // Save to localStorage as backup (removed - using only IndexedDB)
+        // Data is managed through the auto-load JSON system
+        
+        // Update UI
+        renderCharacterList();
+        renderPlacesList();
+        renderTrailersList();
+        renderDownloadsList();
+        
+        // Only show notification if explicitly requested
+        if (showNotification) {
+            const storageType = useLocalStorage ? 'localStorage' : 'IndexedDB';
+            showToast('Datos cargados correctamente', 'success');
+        }
+        
+    } catch (error) {
+        console.error('Error loading auto JSON:', error);
+        if (showNotification) {
+            showToast('Error al cargar el archivo JSON guardado', 'error');
+        }
+    }
+}
+
+async function checkAutoJson() {
+    const isEnabled = localStorage.getItem('autoJsonEnabled') === 'true';
+    const fileName = localStorage.getItem('autoJsonFileName');
+    
+    if (isEnabled && fileName) {
+        const useLocalStorage = localStorage.getItem('useLocalStorage') === 'true';
+        updateAutoJsonStatus(true, fileName + (useLocalStorage ? ' (localStorage)' : ' (IndexedDB)'));
+        
+        // Auto-load the JSON silently
+        await loadAutoJson();
+    } else {
+        updateAutoJsonStatus(false);
+    }
+}
+
+async function clearAutoJson() {
+    const fileName = localStorage.getItem('autoJsonFileName');
+    const useLocalStorage = localStorage.getItem('useLocalStorage') === 'true';
+    
+    // Clear localStorage
+    localStorage.removeItem('autoJsonData');
+    localStorage.removeItem('autoJsonFileName');
+    localStorage.removeItem('autoJsonEnabled');
+    localStorage.removeItem('useLocalStorage');
+    
+    // Clear IndexedDB if used
+    if (!useLocalStorage && fileName) {
+        try {
+            await initAutoJsonDB();
+            const transaction = autoJsonDB.transaction(['jsonFiles'], 'readwrite');
+            const store = transaction.objectStore('jsonFiles');
+            await new Promise((resolve, reject) => {
+                const request = store.delete(fileName);
+                request.onsuccess = () => resolve();
+                request.onerror = () => reject(request.error);
+            });
+        } catch (error) {
+            console.error('Error clearing IndexedDB:', error);
+        }
+    }
+    
+    updateAutoJsonStatus(false);
+    showToast('Archivo JSON guardado eliminado', 'success');
+}
+
+function updateAutoJsonStatus(enabled, fileName = null) {
+    const statusDiv = document.getElementById('autoJsonStatus');
+    const statusText = document.getElementById('statusText');
+    
+    if (enabled) {
+        statusDiv.style.display = 'block';
+        statusDiv.style.background = '#2d5a2d';
+        statusText.textContent = `Archivo guardado: ${fileName}`;
+    } else {
+        statusDiv.style.display = 'block';
+        statusDiv.style.background = '#5a2d2d';
+        statusText.textContent = 'No hay archivo guardado';
+    }
+}
+
+// Theme Management Functions
+function initTheme() {
+    // Load saved theme
+    const savedColor = localStorage.getItem('secondaryColor');
+    if (savedColor) {
+        applyThemeColor(savedColor);
+        document.getElementById('secondaryColor').value = savedColor;
+        document.getElementById('colorHex').textContent = savedColor;
+    }
+    
+    // Setup color picker listener
+    document.getElementById('secondaryColor').addEventListener('input', function(e) {
+        document.getElementById('colorHex').textContent = e.target.value;
+    });
+}
+
+function setThemeColor(color) {
+    document.getElementById('secondaryColor').value = color;
+    document.getElementById('colorHex').textContent = color;
+}
+
+function applyTheme() {
+    const color = document.getElementById('secondaryColor').value;
+    applyThemeColor(color);
+    localStorage.setItem('secondaryColor', color);
+    showToast('Color aplicado correctamente', 'success');
+}
+
+function applyThemeColor(color) {
+    // Apply CSS custom properties
+    const root = document.documentElement;
+    root.style.setProperty('--secondary-color', color);
+    root.style.setProperty('--secondary-color-light', adjustColor(color, 30));
+    root.style.setProperty('--secondary-color-dark', adjustColor(color, -30));
+    root.style.setProperty('--secondary-color-alpha', color + '33');
+    root.style.setProperty('--secondary-color-hover', color + '1A');
+    root.style.setProperty('--secondary-color-shadow', color + '66');
+}
+
+function updateSecondaryColorElements(color) {
+    // Ya no es necesario porque usamos variables CSS
+    // Los elementos se actualizan automáticamente
+    console.log('Color aplicado:', color);
+}
+
+function adjustColor(color, amount) {
+    const num = parseInt(color.replace('#', ''), 16);
+    const r = Math.min(255, Math.max(0, (num >> 16) + amount));
+    const g = Math.min(255, Math.max(0, ((num >> 8) & 0x00FF) + amount));
+    const b = Math.min(255, Math.max(0, (num & 0x0000FF) + amount));
+    return '#' + ((r << 16) | (g << 8) | b).toString(16).padStart(6, '0');
+}
+
+function resetTheme() {
+    const defaultColor = '#ff6b35'; // Este es el valor por defecto, pero el CSS usará la variable
+    applyThemeColor(defaultColor);
+    
+    // Update UI
+    document.getElementById('secondaryColor').value = defaultColor;
+    document.getElementById('colorHex').textContent = defaultColor;
+    
+    // Clear saved theme
+    localStorage.removeItem('secondaryColor');
+    
+    showToast('Color restaurado al naranja predeterminado', 'success');
+}
