@@ -10,6 +10,9 @@ let editingPlaceId = null;
 let mapClickPosition = null;
 let editingHistoryOnly = false;
 
+// Crop: única variable global necesaria (la comparten handlePhotoUpload y CropModule)
+let currentCropImage = null;
+
 // Predefined notifications (you can modify these)
 const predefinedNotifications = [
     {
@@ -114,12 +117,16 @@ function initializeEventListeners() {
     // Character form submission
     document.getElementById('characterForm').addEventListener('submit', handleCharacterSubmit);
 
-    // Photo upload
-    const photoPreview = document.getElementById('photoPreview');
-    const photoInput = document.getElementById('characterPhoto');
-    
-    photoPreview.addEventListener('click', () => photoInput.click());
-    photoInput.addEventListener('change', handlePhotoUpload);
+    // Character photo: click en preview abre el selector de archivo
+    const _pp = document.getElementById('photoPreview');
+    const _cp = document.getElementById('characterPhoto');
+    if (_pp && _cp) {
+        _pp.addEventListener('click', () => _cp.click());
+        _cp.addEventListener('change', handlePhotoUpload);
+    }
+
+    // Crop module: inicializar listeners del canvas
+    CropModule.initListeners();
 
     // Birthday change event for auto-calculation
     document.getElementById('birthday').addEventListener('change', handleBirthdayChange);
@@ -1516,10 +1523,9 @@ function handlePhotoUpload(e) {
     const file = e.target.files[0];
     if (file) {
         const reader = new FileReader();
-        reader.onload = function(e) {
-            const photoPreview = document.getElementById('photoPreview');
-            photoPreview.innerHTML = `<img src="${e.target.result}" alt="Character Photo">`;
-            showToast('Foto subida correctamente', 'success');
+        reader.onload = function(event) {
+            currentCropImage = event.target.result;
+            openCircularCropModal();
         };
         reader.readAsDataURL(file);
     }
@@ -2569,3 +2575,239 @@ function addNotification(title, message, type = 'other', priority = 'medium', st
     renderNotifications();
     saveNotificationsData(); // Save the new notification
 }
+
+// Discord/Google Style Circular Crop Functions
+// ============================================================
+//  CROP MODULE — completamente encapsulado, sin variables globales
+// ============================================================
+const CropModule = (function () {
+
+    // --- Estado interno (privado) ---
+    let _img         = null;
+    let _canvas      = null;
+    let _ctx         = null;
+    let _scale       = 1;
+    let _coverScale  = 1;
+    let _offsetX     = 0;
+    let _offsetY     = 0;
+    let _dragging    = false;
+    let _dragSX      = 0;
+    let _dragSY      = 0;
+    let _touchLX     = 0;
+    let _touchLY     = 0;
+    const EXPORT_SIZE = 512;
+
+    // --- Helpers privados ---
+    function _clamp() {
+        if (!_img || !_canvas) return;
+        const w    = _img.width  * _scale;
+        const h    = _img.height * _scale;
+        const half = _canvas.width * 0.41; // mitad del área de recorte (82% / 2)
+        // Límite: el cuadrado de recorte nunca sale de la foto
+        const maxX = w / 2 - half;
+        const maxY = h / 2 - half;
+        _offsetX = Math.max(-maxX, Math.min(maxX, _offsetX));
+        _offsetY = Math.max(-maxY, Math.min(maxY, _offsetY));
+    }
+
+    function _draw() {
+        if (!_ctx || !_img || !_canvas) return;
+        const S  = _canvas.width;
+        const w  = _img.width  * _scale;
+        const h  = _img.height * _scale;
+        const x  = S / 2 - w / 2 + _offsetX;
+        const y  = S / 2 - h / 2 + _offsetY;
+
+        _ctx.clearRect(0, 0, S, S);
+        _ctx.drawImage(_img, x, y, w, h);
+
+        // Zona de recorte: 82% central
+        const cs = S * 0.82;
+        const cx = (S - cs) / 2;
+        const cy = (S - cs) / 2;
+
+        // Overlay oscuro con hueco cuadrado
+        _ctx.save();
+        _ctx.fillStyle = 'rgba(0,0,0,0.58)';
+        _ctx.beginPath();
+        _ctx.rect(0, 0, S, S);
+        _ctx.rect(cx, cy, cs, cs);
+        _ctx.fill('evenodd');
+        _ctx.restore();
+
+        // Borde + retícula
+        _ctx.save();
+        const accent = getComputedStyle(document.documentElement)
+                        .getPropertyValue('--secondary-color').trim() || '#ff6b35';
+        _ctx.strokeStyle = accent;
+        _ctx.lineWidth = 1.5;
+        _ctx.globalAlpha = 0.8;
+        _ctx.strokeRect(cx, cy, cs, cs);
+        _ctx.lineWidth = 0.75;
+        _ctx.globalAlpha = 0.3;
+        for (let i = 1; i < 3; i++) {
+            _ctx.beginPath(); _ctx.moveTo(cx + cs * i / 3, cy);
+            _ctx.lineTo(cx + cs * i / 3, cy + cs); _ctx.stroke();
+            _ctx.beginPath(); _ctx.moveTo(cx, cy + cs * i / 3);
+            _ctx.lineTo(cx + cs, cy + cs * i / 3); _ctx.stroke();
+        }
+        _ctx.restore();
+    }
+
+    function _setZoomPct(pct) {
+        _scale = _coverScale * (pct / 100);
+        _clamp();
+        _draw();
+    }
+
+    // --- Handlers de eventos (privados) ---
+    function _onMouseDown(e) {
+        _dragging = true;
+        _dragSX = e.clientX - _offsetX;
+        _dragSY = e.clientY - _offsetY;
+        e.preventDefault();
+    }
+    function _onMouseMove(e) {
+        if (!_dragging) return;
+        _offsetX = e.clientX - _dragSX;
+        _offsetY = e.clientY - _dragSY;
+        _clamp(); _draw();
+    }
+    function _onMouseUp()  { _dragging = false; }
+
+    function _onWheel(e) {
+        e.preventDefault();
+        const slider = document.getElementById('cropZoom');
+        if (!slider) return;
+        let pct = Math.max(100, Math.min(300, parseInt(slider.value) - Math.sign(e.deltaY) * 5));
+        slider.value = pct;
+        const v = document.getElementById('zoomValue');
+        if (v) v.textContent = pct + '%';
+        _setZoomPct(pct);
+    }
+
+    function _onTouchStart(e) {
+        if (e.touches.length !== 1) return;
+        _dragging = true;
+        _touchLX = e.touches[0].clientX;
+        _touchLY = e.touches[0].clientY;
+    }
+    function _onTouchMove(e) {
+        if (!_dragging || e.touches.length !== 1) return;
+        _offsetX += e.touches[0].clientX - _touchLX;
+        _offsetY += e.touches[0].clientY - _touchLY;
+        _touchLX = e.touches[0].clientX;
+        _touchLY = e.touches[0].clientY;
+        _clamp(); _draw();
+    }
+    function _onTouchEnd() { _dragging = false; }
+
+    function _onZoomSlider(e) {
+        const pct = parseInt(e.target.value);
+        const v = document.getElementById('zoomValue');
+        if (v) v.textContent = pct + '%';
+        _setZoomPct(pct);
+    }
+
+    // --- API pública ---
+    return {
+
+        initListeners() {
+            const wrap   = document.getElementById('cropCanvasWrap');
+            const slider = document.getElementById('cropZoom');
+            if (wrap) {
+                wrap.addEventListener('mousedown',  _onMouseDown);
+                wrap.addEventListener('wheel',      _onWheel, { passive: false });
+                wrap.addEventListener('touchstart', _onTouchStart, { passive: true });
+                wrap.addEventListener('touchmove',  _onTouchMove,  { passive: true });
+                wrap.addEventListener('touchend',   _onTouchEnd,   { passive: true });
+            }
+            if (slider) slider.addEventListener('input', _onZoomSlider);
+            // Mouse move/up en document para no perder el drag al salir del canvas
+            document.addEventListener('mousemove', _onMouseMove);
+            document.addEventListener('mouseup',   _onMouseUp);
+        },
+
+        open() {
+            if (!currentCropImage) return;
+            const modal = document.getElementById('circularCropModal');
+            if (!modal) return;
+
+            _canvas = document.getElementById('cropCanvas');
+            const wrap = document.getElementById('cropCanvasWrap');
+            if (!_canvas || !wrap) return;
+
+            // Dimensiones reales del contenedor
+            const size = wrap.getBoundingClientRect().width || wrap.offsetWidth || 380;
+            _canvas.width  = size;
+            _canvas.height = size;
+            _ctx = _canvas.getContext('2d');
+
+            // Reset slider
+            const slider = document.getElementById('cropZoom');
+            const valEl  = document.getElementById('zoomValue');
+            if (slider) slider.value = 100;
+            if (valEl)  valEl.textContent = '100%';
+
+            // Mostrar modal ANTES de cargar imagen para que offsetWidth sea correcto
+            modal.style.display = 'flex';
+
+            _img = new Image();
+            _img.onload = function () {
+                // Recalcular tamaño ahora que el modal ya es visible
+                const realSize = wrap.getBoundingClientRect().width || wrap.offsetWidth || 380;
+                _canvas.width  = realSize;
+                _canvas.height = realSize;
+                _coverScale = Math.max(realSize / _img.width, realSize / _img.height);
+                _scale   = _coverScale;
+                _offsetX = 0;
+                _offsetY = 0;
+                _draw();
+            };
+            _img.src = currentCropImage;
+        },
+
+        close() {
+            const modal = document.getElementById('circularCropModal');
+            if (modal) modal.style.display = 'none';
+            _dragging = false;
+        },
+
+        apply() {
+            if (!_img || !_canvas) return;
+            const S  = _canvas.width;
+            const cs = S * 0.82;
+            const cx = (S - cs) / 2;
+            const cy = (S - cs) / 2;
+
+            const imgX = S / 2 - _img.width  * _scale / 2 + _offsetX;
+            const imgY = S / 2 - _img.height * _scale / 2 + _offsetY;
+
+            const srcX = (cx - imgX) / _scale;
+            const srcY = (cy - imgY) / _scale;
+            const srcW = cs / _scale;
+            const srcH = cs / _scale;
+
+            const out  = document.createElement('canvas');
+            out.width  = EXPORT_SIZE;
+            out.height = EXPORT_SIZE;
+            out.getContext('2d').drawImage(_img, srcX, srcY, srcW, srcH, 0, 0, EXPORT_SIZE, EXPORT_SIZE);
+
+            try {
+                const dataUrl = out.toDataURL('image/jpeg', 0.92);
+                const preview = document.getElementById('photoPreview');
+                if (preview) preview.innerHTML = `<img src="${dataUrl}" alt="Character Photo">`;
+                CropModule.close();
+                if (typeof showToast === 'function') showToast('Foto recortada correctamente', 'success');
+            } catch (err) {
+                console.error('Crop export error:', err);
+                if (typeof showToast === 'function') showToast('Error al recortar la imagen', 'error');
+            }
+        }
+    };
+})();
+
+// Alias para compatibilidad con los onclick del HTML
+function openCircularCropModal()  { CropModule.open();  }
+function closeCircularCropModal() { CropModule.close(); }
+function applyCircularCrop()      { CropModule.apply(); }

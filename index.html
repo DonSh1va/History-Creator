@@ -160,44 +160,6 @@
         </main>
     </div>
 
-    <!-- Image Crop Modal -->
-    <div id="imageCropModal" class="modal" style="z-index: 9999;">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>Recortar Foto del Personaje</h3>
-                <button class="close-btn" onclick="closeImageCropModal()">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-            
-            <div class="crop-container">
-                <div class="crop-wrapper">
-                    <img id="cropImage" style="max-width: 100%;">
-                    <div id="cropBox" class="crop-box">
-                        <div class="crop-handles">
-                            <div class="handle nw"></div>
-                            <div class="handle ne"></div>
-                            <div class="handle sw"></div>
-                            <div class="handle se"></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="crop-controls">
-                <div class="zoom-slider">
-                    <label>Zoom:</label>
-                    <input type="range" id="zoomSlider" min="50" max="200" value="100">
-                    <span id="zoomValue">100%</span>
-                </div>
-            </div>
-            
-            <div class="form-actions">
-                <button type="button" onclick="closeImageCropModal()" class="cancel-btn">Cancelar</button>
-                <button type="button" onclick="cropImage()" class="save-btn">Recortar y Guardar</button>
-            </div>
-        </div>
-    </div>
 
     <!-- Place Creation/Edit Modal -->
     <div id="placeModal" class="modal">
@@ -596,6 +558,41 @@
                 <div class="admin-actions">
                     <button onclick="clearAllData()" class="admin-btn danger">
                         <i class="fas fa-trash"></i> Limpiar Todos los Datos
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Canvas-based Square Crop Modal -->
+    <div id="circularCropModal" class="circular-crop-modal">
+        <div class="circular-crop-container">
+            <div class="modal-header">
+                <h3>Recortar Foto de Perfil</h3>
+                <button class="close-btn" onclick="closeCircularCropModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <div class="crop-canvas-wrap" id="cropCanvasWrap">
+                <canvas id="cropCanvas"></canvas>
+            </div>
+
+            <p class="crop-hint"><i class="fas fa-arrows-alt"></i> Arrastra para mover &nbsp;·&nbsp; <i class="fas fa-search-plus"></i> Scroll para zoom</p>
+
+            <div class="crop-controls">
+                <div class="zoom-control">
+                    <label>Zoom:</label>
+                    <input type="range" id="cropZoom" min="100" max="300" value="100">
+                    <span id="zoomValue">100%</span>
+                </div>
+
+                <div class="crop-actions">
+                    <button class="save-btn" onclick="applyCircularCrop()">
+                        <i class="fas fa-check"></i> Aplicar
+                    </button>
+                    <button class="cancel-btn" onclick="closeCircularCropModal()">
+                        <i class="fas fa-times"></i> Cancelar
                     </button>
                 </div>
             </div>
