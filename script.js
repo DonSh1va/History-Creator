@@ -3,11 +3,46 @@ let characters = [];
 let places = [];
 let trailers = [];
 let downloads = [];
+let notifications = [];
 let currentCharacter = null;
 let editingCharacterId = null;
 let editingPlaceId = null;
 let mapClickPosition = null;
 let editingHistoryOnly = false;
+
+// Predefined notifications (you can modify these)
+const predefinedNotifications = [
+    {
+        id: 'notif_1',
+        title: 'Hola Jesus',
+        message: 'Esto lo he metido para que sepas lo que añado o lo que no para que cuando te metas mires a ver que tal. Porcierto no le des a limpiar porque no se si va muy bien xd',
+        type: 'announcement',
+        priority: 'high',
+        date: new Date().toISOString(),
+        sticky: true,
+        read: false
+    },
+    {
+        id: 'notif_2',
+        title: 'Estructura de carpetas',
+        message: 'He corregido la estructura de las carpetas de la Web para que este bien estructurado.',
+        type: 'announcement',
+        priority: 'low',
+        date: new Date().toISOString(),
+        sticky: true,
+        read: false
+    },
+    {
+        id: 'notif_3',
+        title: 'Logo',
+        message: 'He arreglado el Logo para que se vea bien, curiosa combinacion de colores',
+        type: 'announcement',
+        priority: 'high',
+        date: new Date().toISOString(),
+        sticky: true,
+        read: false
+    },
+];
 
 // Placeholder image for missing photos - replace with your own image path
 const PLACEHOLDER_PHOTO = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iIzJkMmQyZCIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTQiIGZpbGw9IiM4ODgiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj5Gb3RvIG5vIGVuY29udHJhZGE8L3RleHQ+PC9zdmc+';
@@ -33,6 +68,7 @@ document.addEventListener('DOMContentLoaded', function() {
     renderMapPins();
     renderTrailersList();
     renderDownloadsList();
+    initializeNotifications();
     
     // Initialize paste event listener for history editor
     initializePasteHandler();
@@ -98,11 +134,11 @@ function initializeEventListeners() {
     // Add vehicle button
     document.querySelector('.add-vehicle-btn').addEventListener('click', addVehicleField);
 
-    // Add place button
-    document.getElementById('addPlaceBtn').addEventListener('click', openPlaceModal);
-
     // Add trailer button
     document.getElementById('addTrailerBtn').addEventListener('click', openTrailerModal);
+
+    // Notification toggle
+    document.getElementById('notificationToggle').addEventListener('click', toggleNotifications);
 
     // Map click event
     document.getElementById('mapImage').addEventListener('dblclick', handleMapClick);
@@ -2299,4 +2335,237 @@ function resetTheme() {
     localStorage.removeItem('secondaryColor');
     
     showToast('Color restaurado al naranja predeterminado', 'success');
+}
+
+// Notification Functions
+function initializeNotifications() {
+    // Load saved notification data from localStorage
+    const savedNotificationsData = localStorage.getItem('notificationsData');
+    let savedData = savedNotificationsData ? JSON.parse(savedNotificationsData) : {
+        readNotifications: new Set(),
+        clearedNotifications: new Set(),
+        customNotifications: []
+    };
+    
+    // Convert arrays back to Sets for easier handling
+    const readNotifications = new Set(savedData.readNotifications || []);
+    const clearedNotifications = new Set(savedData.clearedNotifications || []);
+    const customNotifications = savedData.customNotifications || [];
+    
+    // Start with predefined notifications
+    notifications = [];
+    
+    // Add predefined notifications that haven't been cleared
+    predefinedNotifications.forEach(notif => {
+        if (!clearedNotifications.has(notif.id)) {
+            const notification = { ...notif };
+            notification.read = readNotifications.has(notif.id);
+            notifications.push(notification);
+        }
+    });
+    
+    // Add custom notifications
+    customNotifications.forEach(customNotif => {
+        if (!clearedNotifications.has(customNotif.id)) {
+            const notification = { ...customNotif };
+            notification.read = readNotifications.has(customNotif.id);
+            notifications.push(notification);
+        }
+    });
+    
+    // Update notification count
+    updateNotificationCount();
+    
+    // Render notifications
+    renderNotifications();
+}
+
+function toggleNotifications() {
+    const dropdown = document.getElementById('notificationsDropdown');
+    dropdown.classList.toggle('active');
+    
+    // Close when clicking outside
+    if (dropdown.classList.contains('active')) {
+        setTimeout(() => {
+            document.addEventListener('click', closeNotificationsOnClickOutside);
+        }, 100);
+    }
+}
+
+function closeNotificationsOnClickOutside(e) {
+    const dropdown = document.getElementById('notificationsDropdown');
+    const toggle = document.getElementById('notificationToggle');
+    
+    if (!dropdown.contains(e.target) && !toggle.contains(e.target)) {
+        dropdown.classList.remove('active');
+        document.removeEventListener('click', closeNotificationsOnClickOutside);
+    }
+}
+
+function renderNotifications() {
+    const container = document.getElementById('notificationsList');
+    
+    if (notifications.length === 0) {
+        container.innerHTML = `
+            <div class="empty-notifications">
+                <i class="fas fa-bell-slash"></i>
+                <p>No hay notificaciones</p>
+            </div>
+        `;
+        return;
+    }
+    
+    // Sort notifications: unread first, then by date (newest first)
+    const sortedNotifications = [...notifications].sort((a, b) => {
+        if (a.read !== b.read) return a.read ? 1 : -1;
+        return new Date(b.date) - new Date(a.date);
+    });
+    
+    container.innerHTML = sortedNotifications.map(notification => `
+        <div class="notification-item ${notification.read ? 'read' : 'unread'} priority-${notification.priority}" 
+             onclick="markAsRead('${notification.id}')">
+            <div class="notification-header">
+                <div>
+                    <div class="notification-title">${notification.title}</div>
+                    <div class="notification-meta">
+                        <span class="notification-type ${notification.type}">${getTypeLabel(notification.type)}</span>
+                        <span class="notification-priority ${notification.priority}">${getPriorityLabel(notification.priority)}</span>
+                    </div>
+                </div>
+                ${notification.sticky ? '<div class="notification-sticky"></div>' : ''}
+            </div>
+            <div class="notification-content">${notification.message}</div>
+            <div class="notification-footer">
+                <span class="notification-date">${formatDate(notification.date)}</span>
+            </div>
+        </div>
+    `).join('');
+}
+
+function saveNotificationsData() {
+    // Get current state
+    const readNotifications = notifications.filter(n => n.read).map(n => n.id);
+    const clearedNotifications = Array.from(JSON.parse(localStorage.getItem('notificationsData') || '{}').clearedNotifications || []);
+    const customNotifications = notifications.filter(n => !predefinedNotifications.some(p => p.id === n.id));
+    
+    // Save to localStorage
+    const dataToSave = {
+        readNotifications,
+        clearedNotifications,
+        customNotifications
+    };
+    
+    localStorage.setItem('notificationsData', JSON.stringify(dataToSave));
+}
+
+function markAsRead(notificationId) {
+    const notification = notifications.find(n => n.id === notificationId);
+    if (notification && !notification.read) {
+        notification.read = true;
+        updateNotificationCount();
+        renderNotifications();
+        saveNotificationsData(); // Save the read state
+    }
+}
+
+function clearAllNotifications() {
+    if (confirm('¿Estás seguro de que quieres eliminar todas las notificaciones?')) {
+        // Get all notification IDs to mark as cleared
+        const clearedIds = notifications.map(n => n.id);
+        
+        // Load existing data
+        const savedData = localStorage.getItem('notificationsData');
+        let data = savedData ? JSON.parse(savedData) : {
+            readNotifications: [],
+            clearedNotifications: [],
+            customNotifications: []
+        };
+        
+        // Add current notifications to cleared list
+        data.clearedNotifications = [...new Set([...data.clearedNotifications, ...clearedIds])];
+        
+        // Save updated data
+        localStorage.setItem('notificationsData', JSON.stringify(data));
+        
+        // Clear current notifications
+        notifications = [];
+        updateNotificationCount();
+        renderNotifications();
+        showToast('Todas las notificaciones han sido eliminadas', 'success');
+    }
+}
+
+function updateNotificationCount() {
+    const unreadCount = notifications.filter(n => !n.read).length;
+    const countElement = document.getElementById('notificationCount');
+    
+    if (unreadCount > 0) {
+        countElement.textContent = unreadCount;
+        countElement.style.display = 'flex';
+    } else {
+        countElement.style.display = 'none';
+    }
+}
+
+function getTypeLabel(type) {
+    const labels = {
+        'update': 'Actualización',
+        'new': 'Novedad',
+        'fix': 'Corrección',
+        'announcement': 'Anuncio',
+        'reminder': 'Recordatorio',
+        'other': 'Otro'
+    };
+    return labels[type] || type;
+}
+
+function getPriorityLabel(priority) {
+    const labels = {
+        'low': 'Baja',
+        'medium': 'Media',
+        'high': 'Alta',
+        'urgent': 'Urgente'
+    };
+    return labels[priority] || priority;
+}
+
+function formatDate(dateString) {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffTime = Math.abs(now - date);
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays === 0) {
+        const diffHours = Math.floor(diffTime / (1000 * 60 * 60));
+        if (diffHours === 0) {
+            const diffMinutes = Math.floor(diffTime / (1000 * 60));
+            return diffMinutes <= 1 ? 'Ahora mismo' : `Hace ${diffMinutes} minutos`;
+        }
+        return diffHours === 1 ? 'Hace 1 hora' : `Hace ${diffHours} horas`;
+    } else if (diffDays === 1) {
+        return 'Ayer';
+    } else if (diffDays < 7) {
+        return `Hace ${diffDays} días`;
+    } else {
+        return date.toLocaleDateString('es-ES');
+    }
+}
+
+// Function to add new notification (you can call this from anywhere in your code)
+function addNotification(title, message, type = 'other', priority = 'medium', sticky = false) {
+    const newNotification = {
+        id: 'custom_' + Date.now(),
+        title,
+        message,
+        type,
+        priority,
+        date: new Date().toISOString(),
+        sticky,
+        read: false
+    };
+    
+    notifications.unshift(newNotification);
+    updateNotificationCount();
+    renderNotifications();
+    saveNotificationsData(); // Save the new notification
 }

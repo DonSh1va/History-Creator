@@ -5,8 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>History Creator</title>
     <link rel="stylesheet" href="styles.css">
+    <link rel="icon" href="assets/Logo/favicon-32x32.png" type="image/png" sizes="32x32">
+    <link rel="icon" href="assets/Logo/favicon-16x16.png" type="image/png" sizes="16x16">
+    <link rel="shortcut icon" href="assets/Logo/favicon.ico" type="image/x-icon">
+    <link rel="apple-touch-icon" href="assets/Logo/apple-touch-icon.png">
     <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="icon" href="logoH.jpg">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
@@ -20,6 +23,24 @@
             </div>
             <h1>History Creator</h1>
             <div class="header-actions">
+                <button id="notificationToggle" class="notification-btn">
+                    <i class="fas fa-bell"></i>
+                    <span id="notificationCount" class="notification-count">0</span>
+                </button>
+                
+                <!-- Notifications Dropdown -->
+                <div id="notificationsDropdown" class="notifications-dropdown">
+                    <div class="notifications-header">
+                        <h3>Notificaciones</h3>
+                        <button id="clearNotifications" class="clear-btn">
+                            <i class="fas fa-trash"></i> Limpiar
+                        </button>
+                    </div>
+                    <div id="notificationsList" class="notifications-list">
+                        <!-- Notifications will be loaded here -->
+                    </div>
+                </div>
+                
                 <button id="adminToggle" class="admin-btn">
                     <i class="fas fa-cog"></i> Panel Admin
                 </button>
@@ -84,7 +105,7 @@
                 <div class="map-container">
                     <div id="map" class="map">
                         <div class="map-wrapper" id="mapWrapper">
-                            <img src="Mapa de Los santos.png" alt="Mapa de Los Santos" class="map-image" id="mapImage">
+                            <img src="assets/Mapas/Mapa de Los santos.png" alt="Mapa de Los Santos" class="map-image" id="mapImage">
                             <div id="mapPins" class="map-pins">
                                 <!-- Map pins will be added here -->
                             </div>
