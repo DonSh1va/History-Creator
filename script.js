@@ -45,6 +45,16 @@ const predefinedNotifications = [
         sticky: true,
         read: false
     },
+    {
+        id: 'notif_4',
+        title: 'Actualizacón',
+        message: 'He implementado una función de recorte y encuadre de fotos-',
+        type: 'announcement',
+        priority: 'high',
+        date: new Date().toISOString(),
+        sticky: true,
+        read: false
+    },
 ];
 
 // Placeholder image for missing photos - replace with your own image path
