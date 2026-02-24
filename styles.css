@@ -1695,19 +1695,20 @@ body {
 
 /* Editor content formatting */
 .editor-content h3 {
-    color: var(--secondary-color);
-    font-size: 1.4rem;
-    font-weight: 600;
-    margin: 1rem 0 0.5rem 0;
+    color: var(--secondary-color) !important;
+    font-size: 1.6rem !important;
+    font-weight: 700 !important;
+    margin: 1.2rem 0 0.5rem 0;
     border-bottom: 2px solid var(--secondary-color);
-    padding-bottom: 0.25rem;
+    padding-bottom: 0.3rem;
+    line-height: 1.2;
 }
 
 .editor-content h4 {
-    color: var(--secondary-color);
-    font-size: 1.2rem;
-    font-weight: 500;
-    margin: 0.75rem 0 0.25rem 0;
+    color: var(--secondary-color) !important;
+    font-size: 1.25rem !important;
+    font-weight: 600 !important;
+    margin: 0.9rem 0 0.3rem 0;
 }
 
 .editor-content strong {

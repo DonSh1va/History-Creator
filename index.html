@@ -458,8 +458,8 @@
         
         <div class="admin-content">
             <div class="admin-section">
-                <h4>Guardar en Archivo Local</h4>
-                <p style="color: #888; font-size: 0.85rem; margin-bottom: 0.5rem;">Guarda todos los datos en un archivo en tu PC. Permite ~20 fotos por personaje.</p>
+                <h4>Backup de Datos</h4>
+                <p style="color: #888; font-size: 0.85rem; margin-bottom: 0.5rem;">Los datos se guardan automáticamente en el navegador. Usa estas opciones para hacer copias de seguridad o transferir datos entre dispositivos.</p>
                 <div class="admin-actions">
                     <button onclick="saveToFile()" class="admin-btn">
                         <i class="fas fa-save"></i> Guardar en Archivo
@@ -467,13 +467,6 @@
                     <button onclick="loadFromFile()" class="admin-btn">
                         <i class="fas fa-folder-open"></i> Cargar desde Archivo
                     </button>
-                </div>
-            </div>
-            
-            <div class="admin-section">
-                <h4>Exportar/Importar Datos (Backup)</h4>
-                <p style="color: #888; font-size: 0.85rem; margin-bottom: 0.5rem;">Exporta como JSON para backup o transferir entre dispositivos.</p>
-                <div class="admin-actions">
                     <button onclick="exportData()" class="admin-btn">
                         <i class="fas fa-download"></i> Exportar JSON
                     </button>
@@ -481,29 +474,6 @@
                         <i class="fas fa-upload"></i> Importar JSON
                     </button>
                     <input type="file" id="importFile" accept=".json" style="display: none;" onchange="importData(event)">
-                </div>
-            </div>
-            
-            <div class="admin-section">
-                <h4>Carga Automática de JSON</h4>
-                <p style="color: #888; font-size: 0.85rem; margin-bottom: 0.5rem;">Sube un archivo JSON y se cargará automáticamente cada vez que actualices la página.</p>
-                <div class="admin-actions">
-                    <div style="margin-bottom: 0.5rem;">
-                        <label style="display: block; margin-bottom: 0.25rem; color: #aaa;">Seleccionar archivo JSON:</label>
-                        <input type="file" id="autoJsonFile" accept=".json" style="width: 100%; margin-bottom: 0.5rem; padding: 0.5rem; background: #333; border: 1px solid #555; color: #fff; border-radius: 4px;">
-                    </div>
-                    <div id="autoJsonStatus" style="margin-bottom: 0.5rem; padding: 0.5rem; background: #444; border-radius: 4px; color: #ccc; display: none;">
-                        <small>Estado: <span id="statusText">No hay archivo guardado</span></small>
-                    </div>
-                    <button onclick="uploadAutoJson()" class="admin-btn">
-                        <i class="fas fa-upload"></i> Subir y Activar Carga Automática
-                    </button>
-                    <button onclick="loadAutoJson(true)" class="admin-btn">
-                        <i class="fas fa-play"></i> Cargar Ahora
-                    </button>
-                    <button onclick="clearAutoJson()" class="admin-btn danger">
-                        <i class="fas fa-trash"></i> Eliminar Archivo Guardado
-                    </button>
                 </div>
             </div>
             
@@ -518,30 +488,14 @@
                             <span id="colorHex" style="color: #aaa; font-family: monospace;">#ff6b35</span>
                         </div>
                         <div style="margin-top: 0.5rem; display: flex; flex-wrap: wrap; gap: 0.5rem;">
-                            <button onclick="setThemeColor('#ff6b35')" class="admin-btn" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; min-width: 80px;">
-                                Naranja
-                            </button>
-                            <button onclick="setThemeColor('#4CAF50')" class="admin-btn" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; min-width: 80px;">
-                                Verde
-                            </button>
-                            <button onclick="setThemeColor('#2196F3')" class="admin-btn" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; min-width: 80px;">
-                                Azul
-                            </button>
-                            <button onclick="setThemeColor('#9C27B0')" class="admin-btn" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; min-width: 80px;">
-                                Púrpura
-                            </button>
-                            <button onclick="setThemeColor('#E91E63')" class="admin-btn" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; min-width: 80px;">
-                                Rosa
-                            </button>
-                            <button onclick="setThemeColor('#FFC107')" class="admin-btn" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; min-width: 80px;">
-                                Amarillo
-                            </button>
-                            <button onclick="setThemeColor('#00BCD4')" class="admin-btn" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; min-width: 80px;">
-                                Cyan
-                            </button>
-                            <button onclick="setThemeColor('#795548')" class="admin-btn" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; min-width: 80px;">
-                                Marrón
-                            </button>
+                            <button onclick="setThemeColor('#ff6b35')" class="admin-btn" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; min-width: 80px;">Naranja</button>
+                            <button onclick="setThemeColor('#4CAF50')" class="admin-btn" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; min-width: 80px;">Verde</button>
+                            <button onclick="setThemeColor('#2196F3')" class="admin-btn" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; min-width: 80px;">Azul</button>
+                            <button onclick="setThemeColor('#9C27B0')" class="admin-btn" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; min-width: 80px;">Púrpura</button>
+                            <button onclick="setThemeColor('#E91E63')" class="admin-btn" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; min-width: 80px;">Rosa</button>
+                            <button onclick="setThemeColor('#FFC107')" class="admin-btn" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; min-width: 80px;">Amarillo</button>
+                            <button onclick="setThemeColor('#00BCD4')" class="admin-btn" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; min-width: 80px;">Cyan</button>
+                            <button onclick="setThemeColor('#795548')" class="admin-btn" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; min-width: 80px;">Marrón</button>
                         </div>
                     </div>
                     <button onclick="applyTheme()" class="admin-btn">
