@@ -45,16 +45,6 @@ const predefinedNotifications = [
         sticky: true,
         read: false
     },
-    {
-        id: 'notif_4',
-        title: 'Actualizacón',
-        message: 'He implementado una función de recorte y encuadre de fotos-',
-        type: 'announcement',
-        priority: 'high',
-        date: new Date().toISOString(),
-        sticky: true,
-        read: false
-    },
 ];
 
 // Placeholder image for missing photos - replace with your own image path
@@ -2598,6 +2588,7 @@ const CropModule = (function () {
     let _ctx         = null;
     let _scale       = 1;
     let _coverScale  = 1;
+    let _minScale    = 1;  // mínimo dinámico: cuadrado de recorte siempre dentro de la foto
     let _offsetX     = 0;
     let _offsetY     = 0;
     let _dragging    = false;
@@ -2689,7 +2680,8 @@ const CropModule = (function () {
         e.preventDefault();
         const slider = document.getElementById('cropZoom');
         if (!slider) return;
-        let pct = Math.max(100, Math.min(300, parseInt(slider.value) - Math.sign(e.deltaY) * 5));
+        const _minPct = Math.round((_minScale / _coverScale) * 100);
+        let pct = Math.max(_minPct, Math.min(300, parseInt(slider.value) - Math.sign(e.deltaY) * 5));
         slider.value = pct;
         const v = document.getElementById('zoomValue');
         if (v) v.textContent = pct + '%';
@@ -2713,7 +2705,8 @@ const CropModule = (function () {
     function _onTouchEnd() { _dragging = false; }
 
     function _onZoomSlider(e) {
-        const pct = parseInt(e.target.value);
+        const _minPct = Math.round((_minScale / _coverScale) * 100);
+        const pct = Math.max(_minPct, parseInt(e.target.value));
         const v = document.getElementById('zoomValue');
         if (v) v.textContent = pct + '%';
         _setZoomPct(pct);
@@ -2769,9 +2762,16 @@ const CropModule = (function () {
                 _canvas.width  = realSize;
                 _canvas.height = realSize;
                 _coverScale = Math.max(realSize / _img.width, realSize / _img.height);
+                // Mínimo: la foto debe cubrir al menos el cuadrado de recorte (82%)
+                const cropSize = realSize * 0.82;
+                _minScale = Math.max(cropSize / _img.width, cropSize / _img.height);
+                // El slider arranca en 100 = coverScale, pero puede bajar hasta minScale
                 _scale   = _coverScale;
                 _offsetX = 0;
                 _offsetY = 0;
+                // Actualizar el atributo min del slider dinámicamente
+                const _minPct = Math.round((_minScale / _coverScale) * 100);
+                if (slider) slider.min = _minPct;
                 _draw();
             };
             _img.src = currentCropImage;
