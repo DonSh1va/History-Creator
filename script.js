@@ -10,6 +10,12 @@ let editingPlaceId = null;
 let mapClickPosition = null;
 let editingHistoryOnly = false;
 
+// Entity panel globals
+let currentEntityPanel = null;
+let entityExtraData = {};
+let savedSelectionRange = null;
+let historyHighlightsActive = false;
+
 // Crop: única variable global necesaria (la comparten handlePhotoUpload y CropModule)
 let currentCropImage = null;
 
@@ -39,6 +45,16 @@ const predefinedNotifications = [
         id: 'notif_3',
         title: 'Logo',
         message: 'He arreglado el Logo para que se vea bien, curiosa combinacion de colores',
+        type: 'announcement',
+        priority: 'high',
+        date: new Date().toISOString(),
+        sticky: true,
+        read: false
+    },
+    {
+        id: 'notif_4',
+        title: 'Cambios',
+        message: 'Las relaciones y vehículos ahora tienen su propio perfil con foto, descripción y galería. Las relaciones de personas incluyen campos de información: origen, residencia, género, orientación, fecha de nacimiento, edad, signo zodiacal, ocupación y altura. La foto del perfil de relaciones y vehículos usa el mismo sistema de encuadre que los personajes. Puedes enlazar palabras en la historia a una relación o vehículo del personaje. Botón para mostrar/ocultar los enlaces en la historia con colores por tipo (familia, amigos, vehículos). Al pinchar un enlace en la historia se abre el perfil de esa relación o vehículo. Las cards de relaciones y vehículos en el perfil del personaje son ahora clicables y abren su perfil.',
         type: 'announcement',
         priority: 'high',
         date: new Date().toISOString(),
@@ -137,6 +153,22 @@ document.addEventListener('DOMContentLoaded', async function() {
     
     // Initialize theme
     initTheme();
+
+    // Create entity side panel and link picker
+    createEntityPanel();
+    createLinkPickerModal();
+
+    // Add "Enlazar" button to editor toolbar
+    const toolbar = document.querySelector('.editor-toolbar');
+    if (toolbar) {
+        const linkBtn = document.createElement('button');
+        linkBtn.type = 'button';
+        linkBtn.className = 'editor-btn editor-btn--link';
+        linkBtn.title = 'Enlazar texto seleccionado a un personaje/vehículo';
+        linkBtn.innerHTML = '<i class="fas fa-link"></i> Enlazar';
+        linkBtn.onclick = linkTextInHistory;
+        toolbar.appendChild(linkBtn);
+    }
 });
 
 // Initialize event listeners
@@ -181,7 +213,7 @@ function initializeEventListeners() {
     });
 
     // Add vehicle button
-    document.querySelector('.add-vehicle-btn').addEventListener('click', addVehicleField);
+    document.querySelector('.add-vehicle-btn').addEventListener('click', () => addVehicleField());
 
     // Add trailer button
     document.getElementById('addTrailerBtn').addEventListener('click', openTrailerModal);
@@ -361,6 +393,7 @@ function clearDynamicFields() {
     document.getElementById('friendRelationships').innerHTML = '';
     document.getElementById('vehiclesList').innerHTML = '';
     document.getElementById('photoGalleryContainer').innerHTML = '';
+    entityExtraData = {};
     
     const photoPreview = document.getElementById('photoPreview');
     photoPreview.innerHTML = '<i class="fas fa-camera"></i><span>Subir Foto</span>';
@@ -429,20 +462,54 @@ function collectRelationships() {
     const relationships = { family: [], friends: [] };
 
     // Collect family relationships
-    document.querySelectorAll('#familyRelationships .relationship-input').forEach(input => {
-        const name = input.querySelector('input[type="text"]').value;
-        const relation = input.querySelector('input[type="text"]:nth-child(2)').value;
-        if (name && relation) {
-            relationships.family.push({ name, relation });
+    document.querySelectorAll('#familyRelationships .rel-form-card').forEach(card => {
+        const inputs = card.querySelectorAll('input[type="text"]');
+        const name = inputs[0]?.value.trim();
+        const relation = inputs[1]?.value.trim();
+        const cardId = card.dataset.cardId;
+        const extra = entityExtraData[cardId] || {};
+        if (name) {
+            relationships.family.push({
+                id: card.dataset.entityId || generateId(),
+                name, relation,
+                photo: extra.photo || null,
+                bio: extra.bio || '',
+                gallery: extra.gallery || [],
+                originCountry: extra.originCountry || '',
+                residence: extra.residence || '',
+                gender: extra.gender || '',
+                orientation: extra.orientation || '',
+                birthday: extra.birthday || '',
+                zodiac: extra.zodiac || '',
+                occupation: extra.occupation || '',
+                height: extra.height || '',
+            });
         }
     });
 
     // Collect friend relationships
-    document.querySelectorAll('#friendRelationships .relationship-input').forEach(input => {
-        const name = input.querySelector('input[type="text"]').value;
-        const description = input.querySelector('input[type="text"]:nth-child(2)').value;
-        if (name && description) {
-            relationships.friends.push({ name, description });
+    document.querySelectorAll('#friendRelationships .rel-form-card').forEach(card => {
+        const inputs = card.querySelectorAll('input[type="text"]');
+        const name = inputs[0]?.value.trim();
+        const description = inputs[1]?.value.trim();
+        const cardId = card.dataset.cardId;
+        const extra = entityExtraData[cardId] || {};
+        if (name) {
+            relationships.friends.push({
+                id: card.dataset.entityId || generateId(),
+                name, description,
+                photo: extra.photo || null,
+                bio: extra.bio || '',
+                gallery: extra.gallery || [],
+                originCountry: extra.originCountry || '',
+                residence: extra.residence || '',
+                gender: extra.gender || '',
+                orientation: extra.orientation || '',
+                birthday: extra.birthday || '',
+                zodiac: extra.zodiac || '',
+                occupation: extra.occupation || '',
+                height: extra.height || '',
+            });
         }
     });
 
@@ -451,10 +518,26 @@ function collectRelationships() {
 
 function collectVehicles() {
     const vehicles = [];
-    document.querySelectorAll('.vehicle-input').forEach(input => {
-        const vehicle = input.querySelector('input[type="text"]').value;
+    document.querySelectorAll('.vehicle-form-card').forEach(card => {
+        const vehicle = card.querySelector('input[type="text"]')?.value.trim();
+        const cardId = card.dataset.cardId;
+        const extra = entityExtraData[cardId] || {};
         if (vehicle) {
-            vehicles.push(vehicle);
+            vehicles.push({
+                id: card.dataset.entityId || generateId(),
+                name: vehicle,
+                photo: extra.photo || null,
+                bio: extra.bio || '',
+                gallery: extra.gallery || [],
+                originCountry: extra.originCountry || '',
+                residence: extra.residence || '',
+                gender: extra.gender || '',
+                orientation: extra.orientation || '',
+                birthday: extra.birthday || '',
+                zodiac: extra.zodiac || '',
+                occupation: extra.occupation || '',
+                height: extra.height || '',
+            });
         }
     });
     return vehicles;
@@ -466,17 +549,52 @@ function addRelationshipField(type, data = null) {
         document.getElementById('friendRelationships');
 
     const div = document.createElement('div');
-    div.className = 'relationship-input';
+    div.className = type === 'family' ? 'rel-form-card rel-form-card--family' : 'rel-form-card rel-form-card--friend';
 
-    const nameLabel = type === 'family' ? 'Nombre' : 'Nombre';
-    const secondLabel = type === 'family' ? 'Relación' : 'Descripción';
-    const secondPlaceholder = type === 'family' ? 'Ej: Padre, Hermano' : 'Ej: Amigo de la infancia';
+    const entityId = data?.id || generateId();
+    const cardId = generateId();
+    div.dataset.entityId = entityId;
+    div.dataset.cardId = cardId;
+
+    entityExtraData[cardId] = {
+        photo: data?.photo || null,
+        bio: data?.bio || '',
+        gallery: data?.gallery || [],
+        originCountry: data?.originCountry || '',
+        residence: data?.residence || '',
+        gender: data?.gender || '',
+        orientation: data?.orientation || '',
+        birthday: data?.birthday || '',
+        zodiac: data?.zodiac || '',
+        occupation: data?.occupation || '',
+        height: data?.height || '',
+    };
+
+    const secondPlaceholder = type === 'family' ? 'Ej: Padre, Hermano, Tío...' : 'Ej: Amigo de la infancia...';
+    const secondLabel    = type === 'family' ? 'Tipo de relación' : 'Descripción';
+    const iconClass      = type === 'family' ? 'fas fa-home' : 'fas fa-handshake';
+    const avatarClass    = type === 'family' ? 'rel-form-avatar--family' : 'rel-form-avatar--friend';
+    const avatarIcon     = type === 'family' ? 'fas fa-user' : 'fas fa-user-friends';
 
     div.innerHTML = `
-        <input type="text" placeholder="${nameLabel}" value="${data?.name || ''}">
-        <input type="text" placeholder="${secondPlaceholder}" value="${type === 'family' ? (data?.relation || '') : (data?.description || '')}">
-        <button type="button" class="remove-btn" onclick="this.parentElement.remove()">
-            <i class="fas fa-trash"></i>
+        <div class="rel-form-avatar ${avatarClass}">
+            <i class="${avatarIcon}"></i>
+        </div>
+        <div class="rel-form-fields">
+            <div class="rel-form-field">
+                <label><i class="fas fa-id-badge"></i> Nombre</label>
+                <input type="text" placeholder="Nombre del personaje" value="${data?.name || ''}">
+            </div>
+            <div class="rel-form-field">
+                <label><i class="${iconClass}"></i> ${secondLabel}</label>
+                <input type="text" placeholder="${secondPlaceholder}" value="${type === 'family' ? (data?.relation || '') : (data?.description || '')}">
+            </div>
+        </div>
+        <button type="button" class="rel-form-edit" title="Editar perfil" onclick="openEntityPanelFromForm('${type}', '${cardId}')">
+            <i class="fas fa-user-edit"></i>
+        </button>
+        <button type="button" class="rel-form-remove" onclick="this.closest('.rel-form-card').remove()" title="Eliminar">
+            <i class="fas fa-times"></i>
         </button>
     `;
 
@@ -487,17 +605,42 @@ function addVehicleField(data = null) {
     const container = document.getElementById('vehiclesList');
     
     const div = document.createElement('div');
-    div.className = 'vehicle-input';
-    div.style.display = 'grid';
-    div.style.gridTemplateColumns = '1fr auto';
-    div.style.gap = '0.5rem';
-    div.style.alignItems = 'center';
-    div.style.marginBottom = '0.5rem';
+    div.className = 'vehicle-form-card';
+
+    const entityId = (typeof data === 'object' ? data?.id : null) || generateId();
+    const cardId = generateId();
+    div.dataset.entityId = entityId;
+    div.dataset.cardId = cardId;
+
+    const vehicleName = typeof data === 'string' ? data : (data?.name || '');
+
+    entityExtraData[cardId] = {
+        photo: (typeof data === 'object' ? data?.photo : null) || null,
+        bio: (typeof data === 'object' ? data?.bio : '') || '',
+        gallery: (typeof data === 'object' ? data?.gallery : []) || [],
+        originCountry: (typeof data === 'object' ? data?.originCountry : '') || '',
+        residence: (typeof data === 'object' ? data?.residence : '') || '',
+        gender: (typeof data === 'object' ? data?.gender : '') || '',
+        orientation: (typeof data === 'object' ? data?.orientation : '') || '',
+        birthday: (typeof data === 'object' ? data?.birthday : '') || '',
+        zodiac: (typeof data === 'object' ? data?.zodiac : '') || '',
+        occupation: (typeof data === 'object' ? data?.occupation : '') || '',
+        height: (typeof data === 'object' ? data?.height : '') || '',
+    };
 
     div.innerHTML = `
-        <input type="text" placeholder="Ej: Turismo R, Banshee 900R" value="${data || ''}">
-        <button type="button" class="remove-btn" onclick="this.parentElement.remove()">
-            <i class="fas fa-trash"></i>
+        <div class="vehicle-form-icon">
+            <i class="fas fa-car"></i>
+        </div>
+        <div class="vehicle-form-field">
+            <label><i class="fas fa-tag"></i> Nombre del vehículo</label>
+            <input type="text" placeholder="Elige el Coche" value="${vehicleName}">
+        </div>
+        <button type="button" class="rel-form-edit rel-form-edit--vehicle" title="Editar perfil" onclick="openEntityPanelFromForm('vehicle', '${cardId}')">
+            <i class="fas fa-car-side"></i>
+        </button>
+        <button type="button" class="rel-form-remove" onclick="this.closest('.vehicle-form-card').remove()" title="Eliminar">
+            <i class="fas fa-times"></i>
         </button>
     `;
 
@@ -632,52 +775,81 @@ function renderCharacterDetails() {
                 ${currentCharacter.relationships && (currentCharacter.relationships.family?.length > 0 || currentCharacter.relationships.friends?.length > 0) ? `
                     <div class="info-section">
                         <h4><i class="fas fa-users"></i> Relaciones</h4>
-                        <div class="relationships-container">
-                            ${currentCharacter.relationships.family?.length > 0 ? `
-                                <div class="relationship-category">
-                                    <h5>Familia</h5>
-                                    ${currentCharacter.relationships.family.map(rel => `
-                                        <div class="relationship-item">
-                                            <div class="relationship-name">${rel.name}</div>
-                                            <div class="relationship-type">${rel.relation}</div>
+                        ${currentCharacter.relationships.family?.length > 0 ? `
+                            <div class="rel-group">
+                                <div class="rel-group-title"><i class="fas fa-home"></i> Familia</div>
+                                <div class="rel-cards-grid">
+                                    ${currentCharacter.relationships.family.map((rel, i) => `
+                                        <div class="rel-card rel-card--family" onclick="openEntityPanelFromView('family', ${i})" style="cursor:pointer;">
+                                            <div class="rel-card__avatar"><i class="fas fa-user"></i></div>
+                                            <div class="rel-card__info">
+                                                <div class="rel-card__name">${rel.name}</div>
+                                                <div class="rel-card__badge rel-badge--family">${rel.relation || 'Familiar'}</div>
+                                            </div>
+                                            <i class="fas fa-chevron-right rel-card__arrow"></i>
                                         </div>
                                     `).join('')}
                                 </div>
-                            ` : ''}
-                            
-                            ${currentCharacter.relationships.friends?.length > 0 ? `
-                                <div class="relationship-category">
-                                    <h5>Conocidos/Amigos</h5>
-                                    ${currentCharacter.relationships.friends.map(rel => `
-                                        <div class="relationship-item">
-                                            <div class="relationship-name">${rel.name}</div>
-                                            <div class="relationship-type">${rel.description}</div>
+                            </div>
+                        ` : ''}
+                        ${currentCharacter.relationships.friends?.length > 0 ? `
+                            <div class="rel-group" style="margin-top: 1.2rem;">
+                                <div class="rel-group-title"><i class="fas fa-handshake"></i> Conocidos / Amigos</div>
+                                <div class="rel-cards-grid">
+                                    ${currentCharacter.relationships.friends.map((rel, i) => `
+                                        <div class="rel-card rel-card--friend" onclick="openEntityPanelFromView('friend', ${i})" style="cursor:pointer;">
+                                            <div class="rel-card__avatar rel-card__avatar--friend"><i class="fas fa-user-friends"></i></div>
+                                            <div class="rel-card__info">
+                                                <div class="rel-card__name">${rel.name}</div>
+                                                <div class="rel-card__badge rel-badge--friend">${rel.description || 'Conocido/Amigo'}</div>
+                                            </div>
+                                            <i class="fas fa-chevron-right rel-card__arrow"></i>
                                         </div>
                                     `).join('')}
                                 </div>
-                            ` : ''}
-                        </div>
+                            </div>
+                        ` : ''}
                     </div>
                 ` : ''}
 
-                ${currentCharacter.vehicles?.length > 0 ? `
+                ${currentCharacter.vehicles?.filter(v => typeof v === 'object' && v.name && v.name !== '[object PointerEvent]').length > 0 ? `
                     <div class="info-section">
                         <h4><i class="fas fa-car"></i> Vehículos</h4>
-                        <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
-                            ${currentCharacter.vehicles.map(vehicle => `
-                                <span style="background: #444; padding: 0.5rem 1rem; border-radius: 20px; color: #fff;">
-                                    ${vehicle}
-                                </span>
+                        <div class="rel-cards-grid">
+                            ${currentCharacter.vehicles.filter(v => typeof v === 'object' && v.name && v.name !== '[object PointerEvent]').map((vehicle, i) => `
+                                <div class="rel-card rel-card--vehicle" onclick="openEntityPanelFromView('vehicle', ${i})" style="cursor:pointer;">
+                                    <div class="rel-card__avatar rel-card__avatar--vehicle">
+                                        <i class="fas fa-car"></i>
+                                    </div>
+                                    <div class="rel-card__info">
+                                        <div class="rel-card__name">${vehicle.name}</div>
+                                        <div class="rel-card__badge rel-badge--vehicle">Vehículo</div>
+                                    </div>
+                                    <i class="fas fa-chevron-right rel-card__arrow"></i>
+                                </div>
                             `).join('')}
                         </div>
                     </div>
                 ` : ''}
 
                 ${currentCharacter.history ? `
-                    <div class="info-section">
-                        <h4><i class="fas fa-book"></i> Historia del Personaje</h4>
-                        <div class="character-history-display editor-content" style="background: #2d2d2d; padding: 1rem; border-radius: 8px; border: 1px solid #444; min-height: auto; max-height: none;">
-                            ${currentCharacter.history}
+                    <div class="info-section history-preview-section">
+                        <h4>
+                            <i class="fas fa-book-open"></i> Historia del Personaje
+                            <button class="history-toggle-btn ${historyHighlightsActive ? 'active' : ''}" onclick="toggleHistoryHighlights(this)" title="Mostrar/ocultar enlaces">
+                                <i class="fas fa-highlighter"></i>
+                                ${historyHighlightsActive ? 'Ocultar enlaces' : 'Mostrar enlaces'}
+                            </button>
+                        </h4>
+                        <div class="history-preview-banner" onclick="openHistoryModal('${currentCharacter.id}')" style="cursor:pointer;">
+                            <div class="history-preview-text">
+                                <i class="fas fa-scroll history-preview-icon"></i>
+                                <div>
+                                    <div class="history-preview-title">Ver Historia Completa</div>
+                                    <div class="history-preview-subtitle">Haz clic para leer la historia de ${currentCharacter.fullName}</div>
+                                </div>
+                            </div>
+                            <i class="fas fa-chevron-right history-preview-arrow"></i>
                         </div>
                     </div>
                 ` : ''}
@@ -704,6 +876,65 @@ function renderCharacterDetails() {
             </div>
         </div>
     `;
+}
+
+function openHistoryModal(characterId) {
+    const character = characters.find(c => c.id === characterId);
+    if (!character || !character.history) return;
+
+    // Remove existing modal if any
+    const existing = document.getElementById('historyViewModal');
+    if (existing) existing.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'historyViewModal';
+    modal.className = 'history-view-modal';
+    modal.innerHTML = `
+        <div class="history-view-backdrop" onclick="closeHistoryModal()"></div>
+        <div class="history-view-container">
+            <div class="history-view-header">
+                <div class="history-view-header-left">
+                    <i class="fas fa-scroll"></i>
+                    <div>
+                        <h2>Historia de ${character.fullName}</h2>
+                        <span class="history-view-subtitle">Historia del Personaje</span>
+                    </div>
+                </div>
+                <div style="display:flex;align-items:center;gap:0.75rem;">
+                    <button class="history-toggle-btn ${historyHighlightsActive ? 'active' : ''}" onclick="toggleHistoryHighlights(this)" title="Mostrar/ocultar enlaces">
+                        <i class="fas fa-highlighter"></i>
+                        ${historyHighlightsActive ? 'Ocultar enlaces' : 'Mostrar enlaces'}
+                    </button>
+                    <button class="history-view-close" onclick="closeHistoryModal()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="history-view-body">
+                <div class="history-view-content editor-content ${historyHighlightsActive ? 'history-highlights' : ''}">
+                    ${character.history}
+                </div>
+            </div>
+            <div class="history-view-footer">
+                <button onclick="editCharacterHistory('${character.id}'); closeHistoryModal();" class="admin-btn">
+                    <i class="fas fa-edit"></i> Editar Historia
+                </button>
+                <button onclick="closeHistoryModal()" class="cancel-btn">
+                    <i class="fas fa-times"></i> Cerrar
+                </button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    requestAnimationFrame(() => modal.classList.add('active'));
+}
+
+function closeHistoryModal() {
+    const modal = document.getElementById('historyViewModal');
+    if (modal) {
+        modal.classList.remove('active');
+        setTimeout(() => modal.remove(), 300);
+    }
 }
 
 function editCharacterHistory(characterId) {
@@ -1763,6 +1994,705 @@ function cropImage() {
 }
 
 // Utility Functions
+// ─── ENTITY CENTERED MODAL ───────────────────────────────────────────────────
+
+function openEntityCenteredModal(entity, type, onSave, originPanel = null, editMode = false) {
+    const existing = document.getElementById('entityCenteredModal');
+    if (existing) existing.remove();
+
+    const name = entity.name || '';
+    const subtext = type === 'family' ? (entity.relation||'Familiar') : type === 'friend' ? (entity.description||'Conocido/Amigo') : 'Vehículo';
+    const avatarIcon = type === 'vehicle' ? 'fas fa-car' : type === 'family' ? 'fas fa-user' : 'fas fa-user-friends';
+    const isVehicle = type === 'vehicle';
+
+    const age    = entity.birthday ? calculateAge(entity.birthday) : '';
+    const zodiac = entity.birthday ? calculateZodiac(entity.birthday) : (entity.zodiac || '');
+
+    const modal = document.createElement('div');
+    modal.id = 'entityCenteredModal';
+    modal.className = 'entity-centered-modal';
+
+    const infoRow = (label, value) => value
+        ? `<div class="ecm-info-row"><span class="ecm-info-label">${label}</span><span class="ecm-info-value">${value}</span></div>`
+        : '';
+
+    const genderOptions = ['Hombre','Mujer','No binario','Otro'].map(g =>
+        `<option value="${g}" ${entity.gender === g ? 'selected' : ''}>${g}</option>`).join('');
+    const orientationOptions = ['Heterosexual','Homosexual','Bisexual','Asexual','Otro'].map(o =>
+        `<option value="${o}" ${entity.orientation === o ? 'selected' : ''}>${o}</option>`).join('');
+
+    modal.innerHTML = `
+        <div class="entity-centered-backdrop" onclick="closeEntityCenteredModal()"></div>
+        <div class="entity-centered-container" data-type="${type}" data-edit="${editMode}">
+            <div class="entity-centered-header">
+                <div class="entity-panel-header-info">
+                    <div class="entity-panel-avatar ep-avatar--${type}"><i class="${avatarIcon}"></i></div>
+                    <div>
+                        <h2 id="ecmName">${name}</h2>
+                        <span class="entity-panel-badge ep-badge--${type}" id="ecmBadge">${subtext}</span>
+                    </div>
+                </div>
+                <div style="display:flex;align-items:center;gap:0.5rem;">
+                    ${originPanel ? `<button onclick="collapseEntityModalToPanel()" class="entity-panel-expand-btn" title="Ver en panel lateral"><i class="fas fa-compress-alt"></i></button>` : ''}
+                    <button onclick="closeEntityCenteredModal()" class="history-view-close"><i class="fas fa-times"></i></button>
+                </div>
+            </div>
+            <div class="entity-centered-body-full">
+                <div class="ecm-col-left">
+                    <div class="entity-panel-section">
+                        <div class="entity-panel-section-title"><i class="fas fa-image"></i> Foto</div>
+                        <div class="entity-panel-photo-wrap ecm-photo ${editMode ? 'ecm-photo--editable' : ''}" id="ecmPhotoWrap"
+                            ${editMode ? `onclick="document.getElementById('ecmPhotoInput').click()"` : ''} style="${editMode ? 'cursor:pointer' : 'cursor:default'}">
+                            ${entity.photo
+                                ? `<img src="${entity.photo}" class="entity-panel-photo" alt="${name}">`
+                                : `<div class="entity-panel-photo-placeholder"><i class="fas fa-camera"></i><span>${editMode ? 'Añadir foto' : 'Sin foto'}</span></div>`}
+                        </div>
+                        ${editMode ? `<input type="file" id="ecmPhotoInput" accept="image/*" style="display:none" onchange="handleEcmPhotoUpload(event)">` : ''}
+                    </div>
+
+                    ${!isVehicle ? `
+                    <div class="entity-panel-section" style="margin-top:1rem;">
+                        <div class="entity-panel-section-title"><i class="fas fa-id-card"></i> Información Básica</div>
+                        ${editMode ? `
+                        <div class="ecm-fields-grid">
+                            <div class="ecm-field-group"><label class="ecm-field-label">País de Origen</label>
+                                <input id="ecmOrigin" class="ecm-input" type="text" placeholder="Ej: España" value="${entity.originCountry||''}"></div>
+                            <div class="ecm-field-group"><label class="ecm-field-label">Lugar de Residencia</label>
+                                <input id="ecmResidence" class="ecm-input" type="text" placeholder="Ej: Los Santos" value="${entity.residence||''}"></div>
+                            <div class="ecm-field-group"><label class="ecm-field-label">Género</label>
+                                <select id="ecmGender" class="ecm-input ecm-select">${genderOptions}</select></div>
+                            <div class="ecm-field-group"><label class="ecm-field-label">Orientación Sexual</label>
+                                <select id="ecmOrientation" class="ecm-input ecm-select">${orientationOptions}</select></div>
+                            <div class="ecm-field-group"><label class="ecm-field-label">Fecha de Nacimiento</label>
+                                <input id="ecmBirthday" class="ecm-input" type="date" value="${entity.birthday||''}" oninput="calcEcmAgeZodiac(this.value)"></div>
+                            <div class="ecm-field-group"><label class="ecm-field-label">Edad (auto)</label>
+                                <input id="ecmAge" class="ecm-input ecm-input--readonly" type="text" value="${age}" readonly placeholder="—"></div>
+                            <div class="ecm-field-group"><label class="ecm-field-label">Signo Zodiacal (auto)</label>
+                                <input id="ecmZodiac" class="ecm-input ecm-input--readonly" type="text" value="${zodiac}" readonly placeholder="—"></div>
+                            <div class="ecm-field-group"><label class="ecm-field-label">Ocupación</label>
+                                <input id="ecmOccupation" class="ecm-input" type="text" placeholder="Ej: Policía" value="${entity.occupation||''}"></div>
+                            <div class="ecm-field-group"><label class="ecm-field-label">Altura (cm)</label>
+                                <input id="ecmHeight" class="ecm-input" type="number" placeholder="Ej: 180" value="${entity.height||''}"></div>
+                        </div>
+                        ` : `
+                        <div class="ecm-info-grid">
+                            ${infoRow('País de Origen', entity.originCountry)}
+                            ${infoRow('Residencia', entity.residence)}
+                            ${infoRow('Género', entity.gender)}
+                            ${infoRow('Orientación', entity.orientation)}
+                            ${infoRow('Edad', age ? age + ' años' : '')}
+                            ${infoRow('Zodiacal', zodiac)}
+                            ${infoRow('Ocupación', entity.occupation)}
+                            ${infoRow('Altura', entity.height ? entity.height + ' cm' : '')}
+                        </div>
+                        `}
+                    </div>
+                    ` : ''}
+                </div>
+
+                <div class="ecm-col-right">
+                    <div class="entity-panel-section">
+                        <div class="entity-panel-section-title"><i class="fas fa-align-left"></i> Descripción</div>
+                        <textarea id="ecmBio" class="entity-panel-bio ecm-bio-tall" placeholder="Descripción...">${entity.bio || ''}</textarea>
+                    </div>
+                    <div class="entity-panel-section" style="margin-top:1rem;">
+                        <div class="entity-panel-section-title"><i class="fas fa-images"></i> Galería</div>
+                        <div id="ecmGallery" class="entity-panel-gallery entity-centered-gallery"></div>
+                        <button type="button" class="entity-panel-add-photo" onclick="document.getElementById('ecmGalleryInput').click()">
+                            <i class="fas fa-plus"></i> Añadir foto
+                        </button>
+                        <input type="file" id="ecmGalleryInput" accept="image/*" style="display:none" onchange="handleEcmGalleryUpload(event)">
+                    </div>
+                </div>
+            </div>
+            <div class="entity-centered-footer">
+                <button onclick="saveEntityCenteredModal()" class="save-btn"><i class="fas fa-save"></i> Guardar</button>
+                <button onclick="closeEntityCenteredModal()" class="cancel-btn">Cerrar</button>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(modal);
+    const galleryEl = modal.querySelector('#ecmGallery');
+    (entity.gallery || []).forEach((src, i) => {
+        const item = document.createElement('div');
+        item.className = 'entity-gallery-item';
+        item.innerHTML = `<img src="${src}"><button type="button" class="entity-gallery-remove" onclick="removeEcmGallery(${i})"><i class="fas fa-times"></i></button>`;
+        galleryEl.appendChild(item);
+    });
+
+    modal._onSave = onSave;
+    modal._originPanel = originPanel;
+
+    requestAnimationFrame(() => modal.classList.add('active'));
+}
+
+function collapseEntityModalToPanel() {
+    const modal = document.getElementById('entityCenteredModal');
+    if (!modal) return;
+
+    const originPanel = modal._originPanel;
+    if (!originPanel) { closeEntityCenteredModal(); return; }
+
+    // Read current state from modal
+    const img = modal.querySelector('#ecmPhotoWrap img');
+    const photo = img ? img.src : null;
+    const bio = modal.querySelector('#ecmBio')?.value || '';
+    const galleryImgs = modal.querySelectorAll('#ecmGallery img');
+    const gallery = Array.from(galleryImgs).map(i => i.src);
+    const type = originPanel.type;
+    const index = originPanel.index;
+
+    let entity = null;
+    if (type === 'family') entity = currentCharacter?.relationships?.family?.[index];
+    else if (type === 'friend') entity = currentCharacter?.relationships?.friends?.[index];
+    else if (type === 'vehicle') entity = currentCharacter?.vehicles?.[index];
+
+    closeEntityCenteredModal();
+
+    // Re-open side panel with current data
+    const subtext = type === 'family' ? (entity?.relation||'Familiar') : type === 'friend' ? (entity?.description||'Conocido/Amigo') : 'Vehículo';
+    currentEntityPanel = originPanel;
+    _renderEntityPanel(type, entity?.name || '', subtext, photo, bio, gallery);
+    document.getElementById('entitySidePanel').dataset.type = type;
+    document.getElementById('entitySidePanel').classList.add('active');
+}
+
+function closeEntityCenteredModal() {
+    const modal = document.getElementById('entityCenteredModal');
+    if (!modal) return;
+    modal.classList.remove('active');
+    setTimeout(() => modal.remove(), 300);
+}
+
+function handleEcmPhotoUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        CropModule.openWithCallback(e.target.result, (dataUrl) => {
+            const wrap = document.getElementById('ecmPhotoWrap');
+            if (wrap) wrap.innerHTML = `<img src="${dataUrl}" class="entity-panel-photo" alt="foto">`;
+        });
+    };
+    reader.readAsDataURL(file);
+    event.target.value = '';
+}
+
+function handleEcmGalleryUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        const galleryEl = document.getElementById('ecmGallery');
+        if (!galleryEl) return;
+        const count = galleryEl.querySelectorAll('.entity-gallery-item').length;
+        const item = document.createElement('div');
+        item.className = 'entity-gallery-item';
+        item.innerHTML = `<img src="${e.target.result}"><button type="button" class="entity-gallery-remove" onclick="removeEcmGallery(${count})"><i class="fas fa-times"></i></button>`;
+        galleryEl.appendChild(item);
+    };
+    reader.readAsDataURL(file);
+    event.target.value = '';
+}
+
+function removeEcmGallery(index) {
+    const galleryEl = document.getElementById('ecmGallery');
+    if (!galleryEl) return;
+    const items = galleryEl.querySelectorAll('.entity-gallery-item');
+    if (items[index]) items[index].remove();
+    galleryEl.querySelectorAll('.entity-gallery-item').forEach((item, i) => {
+        const btn = item.querySelector('.entity-gallery-remove');
+        if (btn) btn.setAttribute('onclick', `removeEcmGallery(${i})`);
+    });
+}
+
+function saveEntityCenteredModal() {
+    const modal = document.getElementById('entityCenteredModal');
+    if (!modal) return;
+    const img = modal.querySelector('#ecmPhotoWrap img');
+    const photo = img ? img.src : null;
+    const bio = modal.querySelector('#ecmBio')?.value || '';
+    const galleryImgs = modal.querySelectorAll('#ecmGallery img');
+    const gallery = Array.from(galleryImgs).map(i => i.src);
+    const type = modal.querySelector('.entity-centered-container')?.dataset.type;
+    const isEdit = modal.querySelector('.entity-centered-container')?.dataset.edit === 'true';
+
+    const saved = { photo, bio, gallery };
+    if (type === 'family') saved.relation = modal.querySelector('#ecmBadge')?.textContent || '';
+    else if (type === 'friend') saved.description = modal.querySelector('#ecmBadge')?.textContent || '';
+
+    // Extra fields (only in edit mode and only for non-vehicle)
+    if (isEdit && type !== 'vehicle') {
+        saved.originCountry = modal.querySelector('#ecmOrigin')?.value || '';
+        saved.residence     = modal.querySelector('#ecmResidence')?.value || '';
+        saved.gender        = modal.querySelector('#ecmGender')?.value || '';
+        saved.orientation   = modal.querySelector('#ecmOrientation')?.value || '';
+        saved.birthday      = modal.querySelector('#ecmBirthday')?.value || '';
+        saved.zodiac        = modal.querySelector('#ecmZodiac')?.value || '';
+        saved.occupation    = modal.querySelector('#ecmOccupation')?.value || '';
+        saved.height        = modal.querySelector('#ecmHeight')?.value || '';
+    }
+
+    if (modal._onSave) modal._onSave(saved);
+    showToast('Guardado correctamente', 'success');
+    closeEntityCenteredModal();
+}
+
+// ─── ENTITY SIDE PANEL (for history links) ──────────────────────────────────
+
+function createEntityPanel() {
+    if (document.getElementById('entitySidePanel')) return;
+    const panel = document.createElement('div');
+    panel.id = 'entitySidePanel';
+    panel.className = 'entity-side-panel';
+    panel.innerHTML = `
+        <div class="entity-panel-header" id="entityPanelHeader">
+            <div class="entity-panel-header-info">
+                <div class="entity-panel-avatar" id="entityPanelAvatar"><i class="fas fa-user"></i></div>
+                <div>
+                    <h3 id="entityPanelName">—</h3>
+                    <span class="entity-panel-badge" id="entityPanelBadge">—</span>
+                </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:0.5rem;">
+                <button onclick="expandEntityPanelToModal()" class="entity-panel-expand-btn" title="Ver en grande">
+                    <i class="fas fa-expand-alt"></i>
+                </button>
+                <button onclick="closeEntityPanel()" class="history-view-close"><i class="fas fa-times"></i></button>
+            </div>
+        </div>
+        <div class="entity-panel-body" id="entityPanelBody">
+            <div class="entity-panel-section">
+                <div class="entity-panel-section-title"><i class="fas fa-image"></i> Foto</div>
+                <div class="entity-panel-photo-wrap" id="entityPanelPhotoWrap" onclick="document.getElementById('entityPhotoInput').click()">
+                    <div class="entity-panel-photo-placeholder"><i class="fas fa-camera"></i><span>Añadir foto</span></div>
+                </div>
+                <input type="file" id="entityPhotoInput" accept="image/*" style="display:none" onchange="handleEntityPhotoUpload(event)">
+            </div>
+            <div class="entity-panel-section">
+                <div class="entity-panel-section-title"><i class="fas fa-align-left"></i> Descripción</div>
+                <textarea id="entityPanelBio" class="entity-panel-bio" placeholder="Escribe una descripción..."></textarea>
+            </div>
+            <div class="entity-panel-section">
+                <div class="entity-panel-section-title"><i class="fas fa-images"></i> Galería</div>
+                <div id="entityPanelGallery" class="entity-panel-gallery"></div>
+                <button type="button" class="entity-panel-add-photo" onclick="document.getElementById('entityGalleryInput').click()">
+                    <i class="fas fa-plus"></i> Añadir foto
+                </button>
+                <input type="file" id="entityGalleryInput" accept="image/*" style="display:none" onchange="handleEntityGalleryUpload(event)">
+            </div>
+        </div>
+        <div class="entity-panel-footer">
+            <button onclick="saveEntityPanelData()" class="save-btn"><i class="fas fa-save"></i> Guardar</button>
+            <button onclick="closeEntityPanel()" class="cancel-btn">Cerrar</button>
+        </div>
+    `;
+    document.body.appendChild(panel);
+}
+
+function openEntityPanelFromForm(type, cardId) {
+    const card = document.querySelector(`[data-card-id="${cardId}"]`);
+    if (!card) return;
+    const inputs = card.querySelectorAll('input[type="text"]');
+    const name = inputs[0]?.value || 'Sin nombre';
+    const subtext = inputs[1]?.value || '';
+    const extra = entityExtraData[cardId] || { photo: null, bio: '', gallery: [] };
+
+    const entity = {
+        id: card.dataset.entityId,
+        name, bio: extra.bio || '',
+        photo: extra.photo || null,
+        gallery: extra.gallery || [],
+        originCountry: extra.originCountry || '',
+        residence: extra.residence || '',
+        gender: extra.gender || '',
+        orientation: extra.orientation || '',
+        birthday: extra.birthday || '',
+        zodiac: extra.zodiac || '',
+        occupation: extra.occupation || '',
+        height: extra.height || '',
+    };
+    if (type === 'family') entity.relation = subtext;
+    else if (type === 'friend') entity.description = subtext;
+
+    openEntityCenteredModal(entity, type, (saved) => {
+        entityExtraData[cardId] = {
+            ...entityExtraData[cardId],
+            photo: saved.photo,
+            bio: saved.bio,
+            gallery: saved.gallery,
+            originCountry: saved.originCountry,
+            residence: saved.residence,
+            gender: saved.gender,
+            orientation: saved.orientation,
+            birthday: saved.birthday,
+            zodiac: saved.zodiac,
+            occupation: saved.occupation,
+            height: saved.height,
+        };
+    }, null, true);
+}
+
+function openEntityPanelFromView(type, index) {
+    if (!currentCharacter) return;
+    let entity;
+    if (type === 'family') entity = currentCharacter.relationships?.family?.[index];
+    else if (type === 'friend') entity = currentCharacter.relationships?.friends?.[index];
+    else if (type === 'vehicle') entity = currentCharacter.vehicles?.[index];
+    if (!entity) return;
+    openEntityCenteredModal(entity, type, (saved) => {
+        const merged = { ...entity, ...saved };
+        if (type === 'family') currentCharacter.relationships.family[index] = merged;
+        else if (type === 'friend') currentCharacter.relationships.friends[index] = merged;
+        else if (type === 'vehicle') currentCharacter.vehicles[index] = merged;
+        const ci = characters.findIndex(c => c.id === currentCharacter.id);
+        if (ci >= 0) characters[ci] = currentCharacter;
+        saveData();
+        renderCharacterDetails();
+    });
+}
+
+function openEntityPanelById(entityId, linkType) {
+    if (!currentCharacter) return;
+    let entity = null;
+    let index = -1;
+    if (linkType === 'family') {
+        index = currentCharacter.relationships?.family?.findIndex(e => e.id === entityId) ?? -1;
+        if (index >= 0) entity = currentCharacter.relationships.family[index];
+    } else if (linkType === 'friend') {
+        index = currentCharacter.relationships?.friends?.findIndex(e => e.id === entityId) ?? -1;
+        if (index >= 0) entity = currentCharacter.relationships.friends[index];
+    } else if (linkType === 'vehicle') {
+        index = currentCharacter.vehicles?.findIndex(v => typeof v === 'object' && v.id === entityId) ?? -1;
+        if (index >= 0) entity = currentCharacter.vehicles[index];
+    }
+    if (!entity || index < 0) return;
+
+    const subtext = linkType === 'family' ? (entity.relation||'Familiar') : linkType === 'friend' ? (entity.description||'Conocido/Amigo') : 'Vehículo';
+    currentEntityPanel = { source: 'view', type: linkType, index };
+    _renderEntityPanel(linkType, entity.name, subtext, entity.photo, entity.bio, entity.gallery || []);
+    document.getElementById('entitySidePanel').dataset.type = linkType;
+    document.getElementById('entitySidePanel').classList.add('active');
+}
+
+function _renderEntityPanel(type, name, subtext, photo, bio, gallery) {
+    // Avatar color + icon
+    const avatarEl = document.getElementById('entityPanelAvatar');
+    avatarEl.className = 'entity-panel-avatar';
+    if (type === 'family') { avatarEl.classList.add('ep-avatar--family'); avatarEl.innerHTML = '<i class="fas fa-user"></i>'; }
+    else if (type === 'friend') { avatarEl.classList.add('ep-avatar--friend'); avatarEl.innerHTML = '<i class="fas fa-user-friends"></i>'; }
+    else { avatarEl.classList.add('ep-avatar--vehicle'); avatarEl.innerHTML = '<i class="fas fa-car"></i>'; }
+
+    document.getElementById('entityPanelName').textContent = name;
+    const badge = document.getElementById('entityPanelBadge');
+    badge.textContent = subtext || (type === 'vehicle' ? 'Vehículo' : type === 'family' ? 'Familiar' : 'Conocido/Amigo');
+    badge.className = `entity-panel-badge ep-badge--${type}`;
+
+    // Photo
+    const photoWrap = document.getElementById('entityPanelPhotoWrap');
+    if (photo) {
+        photoWrap.innerHTML = `<img src="${photo}" alt="${name}" class="entity-panel-photo">`;
+    } else {
+        photoWrap.innerHTML = `<div class="entity-panel-photo-placeholder"><i class="fas fa-camera"></i><span>Añadir foto</span></div>`;
+    }
+
+    // Bio
+    document.getElementById('entityPanelBio').value = bio || '';
+
+    // Gallery
+    const galleryEl = document.getElementById('entityPanelGallery');
+    galleryEl.innerHTML = '';
+    (gallery || []).forEach((imgSrc, i) => {
+        const item = document.createElement('div');
+        item.className = 'entity-gallery-item';
+        item.innerHTML = `
+            <img src="${imgSrc}" alt="Foto ${i+1}">
+            <button type="button" class="entity-gallery-remove" onclick="removeEntityGalleryPhoto(${i})"><i class="fas fa-times"></i></button>
+        `;
+        galleryEl.appendChild(item);
+    });
+}
+
+function closeEntityPanel() {
+    const panel = document.getElementById('entitySidePanel');
+    if (panel) panel.classList.remove('active');
+    currentEntityPanel = null;
+}
+
+function handleEntityPhotoUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        CropModule.openWithCallback(e.target.result, (dataUrl) => {
+            const photoWrap = document.getElementById('entityPanelPhotoWrap');
+            if (photoWrap) photoWrap.innerHTML = `<img src="${dataUrl}" alt="foto" class="entity-panel-photo">`;
+        });
+    };
+    reader.readAsDataURL(file);
+    event.target.value = '';
+}
+
+function expandEntityPanelToModal() {
+    if (!currentEntityPanel) return;
+    const { type, index } = currentEntityPanel;
+    let entity = null;
+    if (type === 'family') entity = currentCharacter?.relationships?.family?.[index];
+    else if (type === 'friend') entity = currentCharacter?.relationships?.friends?.[index];
+    else if (type === 'vehicle') entity = currentCharacter?.vehicles?.[index];
+    if (!entity) return;
+
+    // Read current unsaved state from the side panel
+    const photoWrap = document.getElementById('entityPanelPhotoWrap');
+    const img = photoWrap?.querySelector('img');
+    const photo = img ? img.src : entity.photo;
+    const bio = document.getElementById('entityPanelBio')?.value ?? entity.bio;
+    const galleryImgs = document.getElementById('entityPanelGallery')?.querySelectorAll('img');
+    const gallery = galleryImgs ? Array.from(galleryImgs).map(i => i.src) : (entity.gallery || []);
+
+    const savedPanel = { ...currentEntityPanel };
+    closeEntityPanel();
+
+    openEntityCenteredModal({ ...entity, photo, bio, gallery }, type, (saved) => {
+        if (type === 'family') currentCharacter.relationships.family[index] = { ...currentCharacter.relationships.family[index], ...saved };
+        else if (type === 'friend') currentCharacter.relationships.friends[index] = { ...currentCharacter.relationships.friends[index], ...saved };
+        else if (type === 'vehicle') currentCharacter.vehicles[index] = { ...currentCharacter.vehicles[index], ...saved };
+        const ci = characters.findIndex(c => c.id === currentCharacter.id);
+        if (ci >= 0) characters[ci] = currentCharacter;
+        saveData();
+        renderCharacterDetails();
+    }, savedPanel);
+}
+
+function handleEntityGalleryUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        const galleryEl = document.getElementById('entityPanelGallery');
+        const count = galleryEl.querySelectorAll('.entity-gallery-item').length;
+        const item = document.createElement('div');
+        item.className = 'entity-gallery-item';
+        item.innerHTML = `
+            <img src="${e.target.result}" alt="Foto">
+            <button type="button" class="entity-gallery-remove" onclick="removeEntityGalleryPhoto(${count})"><i class="fas fa-times"></i></button>
+        `;
+        galleryEl.appendChild(item);
+    };
+    reader.readAsDataURL(file);
+    event.target.value = '';
+}
+
+function removeEntityGalleryPhoto(index) {
+    const galleryEl = document.getElementById('entityPanelGallery');
+    const items = galleryEl.querySelectorAll('.entity-gallery-item');
+    if (items[index]) items[index].remove();
+    // Reindex remove buttons
+    galleryEl.querySelectorAll('.entity-gallery-item').forEach((item, i) => {
+        const btn = item.querySelector('.entity-gallery-remove');
+        if (btn) btn.setAttribute('onclick', `removeEntityGalleryPhoto(${i})`);
+    });
+}
+
+function saveEntityPanelData() {
+    if (!currentEntityPanel) return;
+
+    const photoWrap = document.getElementById('entityPanelPhotoWrap');
+    const img = photoWrap.querySelector('img');
+    const photo = img ? img.src : null;
+    const bio = document.getElementById('entityPanelBio').value;
+    const galleryImgs = document.getElementById('entityPanelGallery').querySelectorAll('img');
+    const gallery = Array.from(galleryImgs).map(img => img.src);
+
+    if (currentEntityPanel.source === 'form') {
+        const { cardId } = currentEntityPanel;
+        entityExtraData[cardId] = { ...entityExtraData[cardId], photo, bio, gallery };
+    } else if (currentEntityPanel.source === 'view') {
+        const { type, index } = currentEntityPanel;
+        if (type === 'family' && currentCharacter.relationships?.family?.[index]) {
+            Object.assign(currentCharacter.relationships.family[index], { photo, bio, gallery });
+        } else if (type === 'friend' && currentCharacter.relationships?.friends?.[index]) {
+            Object.assign(currentCharacter.relationships.friends[index], { photo, bio, gallery });
+        } else if (type === 'vehicle' && currentCharacter.vehicles?.[index]) {
+            Object.assign(currentCharacter.vehicles[index], { photo, bio, gallery });
+        }
+        const charIndex = characters.findIndex(c => c.id === currentCharacter.id);
+        if (charIndex >= 0) characters[charIndex] = currentCharacter;
+        saveData();
+        // Update avatar if photo changed
+        _renderEntityPanel(
+            currentEntityPanel.type,
+            document.getElementById('entityPanelName').textContent,
+            document.getElementById('entityPanelBadge').textContent,
+            photo, bio, gallery
+        );
+    }
+    showToast('Perfil guardado', 'success');
+}
+
+// ─── HISTORY HIGHLIGHTS TOGGLE ───────────────────────────────────────────────
+
+function toggleHistoryHighlights(btn) {
+    historyHighlightsActive = !historyHighlightsActive;
+    // Update all toggle buttons on page
+    document.querySelectorAll('.history-toggle-btn').forEach(b => {
+        b.classList.toggle('active', historyHighlightsActive);
+        b.innerHTML = `<i class="fas fa-highlighter"></i> ${historyHighlightsActive ? 'Ocultar enlaces' : 'Mostrar enlaces'}`;
+    });
+    // Toggle class on all history content containers
+    document.querySelectorAll('.history-view-content, .character-history-display').forEach(el => {
+        el.classList.toggle('history-highlights', historyHighlightsActive);
+    });
+}
+
+// ─── HISTORY LINK TOOL ───────────────────────────────────────────────────────
+
+function createLinkPickerModal() {
+    if (document.getElementById('linkPickerModal')) return;
+    const modal = document.createElement('div');
+    modal.id = 'linkPickerModal';
+    modal.className = 'link-picker-modal';
+    modal.innerHTML = `
+        <div class="link-picker-backdrop" onclick="closeLinkPicker()"></div>
+        <div class="link-picker-container">
+            <div class="link-picker-header">
+                <div>
+                    <div class="link-picker-title">Enlazar texto</div>
+                    <div class="link-picker-selected-text">"<span id="linkPickerSelectedText"></span>"</div>
+                </div>
+                <button onclick="closeLinkPicker()" class="history-view-close"><i class="fas fa-times"></i></button>
+            </div>
+            <div id="linkPickerContent" class="link-picker-content"></div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+}
+
+function linkTextInHistory() {
+    const editor = document.getElementById('characterHistory');
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
+        showToast('Selecciona el texto que quieres enlazar primero', 'warning');
+        return;
+    }
+    if (!editor.contains(selection.getRangeAt(0).commonAncestorContainer)) {
+        showToast('Selecciona texto dentro del editor de historia', 'warning');
+        return;
+    }
+    const selectedText = selection.toString().trim();
+    if (!selectedText) return;
+    savedSelectionRange = selection.getRangeAt(0).cloneRange();
+    showLinkPicker(selectedText);
+}
+
+function showLinkPicker(selectedText) {
+    const characterId = editingCharacterId;
+    if (!characterId) { showToast('Guarda el personaje primero', 'warning'); return; }
+    const character = characters.find(c => c.id === characterId);
+    if (!character) return;
+
+    document.getElementById('linkPickerSelectedText').textContent = selectedText;
+    const content = document.getElementById('linkPickerContent');
+    content.innerHTML = '';
+
+    const buildItem = (entity, type, labelExtra) => {
+        const div = document.createElement('div');
+        div.className = `link-picker-item lp-item--${type}`;
+        const avatarIcon = type === 'vehicle' ? 'fas fa-car' : type === 'family' ? 'fas fa-user' : 'fas fa-user-friends';
+        div.innerHTML = `
+            <div class="link-picker-avatar lp-avatar--${type}"><i class="${avatarIcon}"></i></div>
+            <div class="link-picker-info">
+                <div class="link-picker-name">${entity.name}</div>
+                ${labelExtra ? `<div class="link-picker-sub">${labelExtra}</div>` : ''}
+            </div>
+            <span class="link-picker-type-badge lp-badge--${type}">${type === 'family' ? 'Familia' : type === 'friend' ? 'Amigo' : 'Vehículo'}</span>
+        `;
+        div.onclick = () => applyHistoryLink(entity.id, type, selectedText);
+        return div;
+    };
+
+    let hasItems = false;
+
+    if (character.relationships?.family?.length > 0) {
+        const title = document.createElement('div');
+        title.className = 'link-picker-group-title';
+        title.innerHTML = `<i class="fas fa-home" style="color:var(--secondary-color)"></i> Familia`;
+        content.appendChild(title);
+        character.relationships.family.forEach(rel => {
+            content.appendChild(buildItem(rel, 'family', rel.relation));
+            hasItems = true;
+        });
+    }
+    if (character.relationships?.friends?.length > 0) {
+        const title = document.createElement('div');
+        title.className = 'link-picker-group-title';
+        title.innerHTML = `<i class="fas fa-handshake" style="color:#2196f3"></i> Conocidos / Amigos`;
+        content.appendChild(title);
+        character.relationships.friends.forEach(rel => {
+            content.appendChild(buildItem(rel, 'friend', rel.description));
+            hasItems = true;
+        });
+    }
+    if (character.vehicles?.filter(v => typeof v === 'object').length > 0) {
+        const title = document.createElement('div');
+        title.className = 'link-picker-group-title';
+        title.innerHTML = `<i class="fas fa-car" style="color:#9c27b0"></i> Vehículos`;
+        content.appendChild(title);
+        character.vehicles.filter(v => typeof v === 'object').forEach(v => {
+            content.appendChild(buildItem(v, 'vehicle', ''));
+            hasItems = true;
+        });
+    }
+
+    if (!hasItems) {
+        content.innerHTML = `<p style="color:#888;padding:1.5rem;text-align:center;font-size:0.95rem;">No hay relaciones ni vehículos en este personaje.<br>Añádelos primero desde el formulario de edición.</p>`;
+    }
+
+    document.getElementById('linkPickerModal').classList.add('active');
+}
+
+function closeLinkPicker() {
+    document.getElementById('linkPickerModal')?.classList.remove('active');
+}
+
+function applyHistoryLink(entityId, linkType, selectedText) {
+    closeLinkPicker();
+    if (!savedSelectionRange) return;
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(savedSelectionRange);
+
+    const span = document.createElement('span');
+    span.className = 'history-link';
+    span.dataset.linkType = linkType;
+    span.dataset.linkId = entityId;
+    span.setAttribute('onclick', `openEntityPanelById('${entityId}','${linkType}')`);
+    span.textContent = selectedText;
+
+    savedSelectionRange.deleteContents();
+    savedSelectionRange.insertNode(span);
+
+    // Place cursor after span
+    const range = document.createRange();
+    range.setStartAfter(span);
+    range.collapse(true);
+    selection.removeAllRanges();
+    selection.addRange(range);
+
+    savedSelectionRange = null;
+    document.getElementById('characterHistory').focus();
+    showToast('Texto enlazado correctamente', 'success');
+}
+
+function calcEcmAgeZodiac(value) {
+    const ageEl = document.getElementById('ecmAge');
+    const zodiacEl = document.getElementById('ecmZodiac');
+    if (!value) { if (ageEl) ageEl.value = ''; if (zodiacEl) zodiacEl.value = ''; return; }
+    if (ageEl) ageEl.value = calculateAge(value);
+    if (zodiacEl) zodiacEl.value = calculateZodiac(value);
+}
+
 function generateId() {
     return 'char_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
 }
@@ -2368,7 +3298,7 @@ const CropModule = (function () {
     let _ctx         = null;
     let _scale       = 1;
     let _coverScale  = 1;
-    let _minScale    = 1;  // mínimo dinámico: cuadrado de recorte siempre dentro de la foto
+    let _minScale    = 1;
     let _offsetX     = 0;
     let _offsetY     = 0;
     let _dragging    = false;
@@ -2376,6 +3306,7 @@ const CropModule = (function () {
     let _dragSY      = 0;
     let _touchLX     = 0;
     let _touchLY     = 0;
+    let _applyCallback = null;
     const EXPORT_SIZE = 512;
 
     // --- Helpers privados ---
@@ -2585,14 +3516,25 @@ const CropModule = (function () {
 
             try {
                 const dataUrl = out.toDataURL('image/jpeg', 0.92);
-                const preview = document.getElementById('photoPreview');
-                if (preview) preview.innerHTML = `<img src="${dataUrl}" alt="Character Photo">`;
+                if (_applyCallback) {
+                    _applyCallback(dataUrl);
+                    _applyCallback = null;
+                } else {
+                    const preview = document.getElementById('photoPreview');
+                    if (preview) preview.innerHTML = `<img src="${dataUrl}" alt="Character Photo">`;
+                }
                 CropModule.close();
                 if (typeof showToast === 'function') showToast('Foto recortada correctamente', 'success');
             } catch (err) {
                 console.error('Crop export error:', err);
                 if (typeof showToast === 'function') showToast('Error al recortar la imagen', 'error');
             }
+        },
+
+        openWithCallback(imageSrc, callback) {
+            _applyCallback = callback;
+            currentCropImage = imageSrc;
+            CropModule.open();
         }
     };
 })();
